@@ -1,0 +1,170 @@
+
+import sys
+from PyQt5.QtWidgets import (
+    QApplication,
+    QCheckBox,
+    QComboBox,
+    QDateEdit,
+    QDateTimeEdit,
+    QDial,
+    QDoubleSpinBox,
+    QFontComboBox,
+    QLabel,
+    QLCDNumber,
+    QLineEdit,
+    QMainWindow,
+    QProgressBar,
+    QPushButton,
+    QRadioButton,
+    QSlider,
+    QSpinBox,
+    QTimeEdit,
+    QVBoxLayout,
+    QWidget,
+)
+
+from PyQt5.QtGui import QPalette, QColor
+
+
+
+class Color(QWidget):
+    def __init__(self,color):
+        super().__init__()
+        self.setAutoFillBackground(True)
+        
+        palette = self.palette()
+        palette.setColor(QPalette.Window, QColor(color))
+        self.setPalette(palette)
+ 
+class MainWindow(QMainWindow):
+
+    def __init__(self):
+        super().__init__()
+
+        self.setWindowTitle("My App")  
+
+        layout = QVBoxLayout()
+
+        layout.addWidget(Color('red'))
+        layout.addWidget(Color('green'))
+        layout.addWidget(Color('blue'))
+
+        widget = QWidget()
+        widget.setLayout(layout)
+        self.setCentralWidget(widget)
+
+
+
+app = QApplication(sys.argv)
+ 
+window = MainWindow()
+window.show()
+
+app.exec()
+
+
+
+
+# class MainWindow(QMainWindow):
+#     def __init__(self):
+#         super().__init__()
+        
+#         self.setWindowTitle("My App")
+#         # self.setFixedSize(700,700)
+#         layout = QVBoxLayout()
+#         widgets = [
+#             QCheckBox,
+#             QComboBox,
+#             QDateEdit,
+#             QDateTimeEdit,
+#             QDial,
+#             QDoubleSpinBox,
+#             QFontComboBox,
+#             QLCDNumber,
+#             QLabel,
+#             QLineEdit,
+#             QProgressBar,
+#             QPushButton,
+#             QRadioButton,
+#             QSlider,
+#             QSpinBox,
+#             QTimeEdit,
+#         ]
+
+#         for widget_class in widgets:
+#             # addchildwidgets is not correct use addWidgets
+#             layout.addWidget(widget_class())
+#             # QWidget: base class for all widgets 
+#         widget = QWidget() # this is the container for the QVBox, as central widget
+#         widget.setLayout(layout)
+
+#         self.setCentralWidget(widget)
+
+
+
+
+
+# QMainWindow is a parent class from which MainWindow is being inherited
+# class MainWindow(QMainWindow):
+#     def __init__(self):
+#         super().__init__() # Calling the constructor of parent class
+
+#         self.setWindowTitle("My App")
+
+#         self.label = QLabel()
+
+#         self.input = QLineEdit()
+#         self.input.textChanged.connect(self.label.setText)
+
+#         # A QVBoxLayout is created to arrange widgets vertically (one below the other).``
+#         layout = QVBoxLayout()
+#         layout.addWidget(self.input)
+#         layout.addWidget(self.label)
+
+#         container = QWidget()
+#         container.setLayout(layout)
+
+#         # Set the central widget of the Window.
+#         self.setCentralWidget(container)
+
+
+
+
+
+
+
+# import sys
+# from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QMainWindow
+# from PyQt5.QtCore import QSize,Qt
+
+# # Variables
+# AppName = "Sweet Bean"
+# Width , Height = 1000 , 900
+
+# # Subclass QMainWindow to customize your application's main window
+# class MainWindow(QMainWindow):
+#     def __init__(self): 
+#         super().__init__()
+
+#         self.setWindowTitle(AppName)
+#         self.button = QPushButton("Press Me!")
+#         # Set the central widget of the Window.
+#         # self.setFixedSize(QSize(Width,Height))
+#         self.button.setCheckable(True)
+#         self.button.clicked.connect(self.WasClicked)
+#         self.setCentralWidget(self.button)
+
+#     def WasClicked(self):
+#         self.button.setText("You already clicked me.")
+#         self.button.setEnabled(False)
+
+#         # Also change the window title.
+#         self.setWindowTitle("My Oneshot App")
+    
+
+
+# app = QApplication(sys.argv)
+# window = MainWindow()
+# window.show()
+
+# app.exec()
