@@ -10,7 +10,6 @@ from PyQt5.QtWidgets import (
     QDoubleSpinBox,
     QFontComboBox,
     QLabel,
-    QLCDNumber,
     QLineEdit,
     QMainWindow,
     QProgressBar,
@@ -23,6 +22,7 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
     QHBoxLayout,
     QTableWidget,
+    QTableWidgetItem,
     QWidget,
 )
 
@@ -35,8 +35,8 @@ headers = ["Product","Quantity (Kg)","Price (Rs)","Actions"]
 class Color(QWidget):
     def __init__(self,color):
         super().__init__()
-        self.setAutoFillBackground(True)
         
+        self.setAutoFillBackground(True)
         palette = self.palette()
         palette.setColor(QPalette.Window, QColor(color))
         self.setPalette(palette)
@@ -57,30 +57,28 @@ class MainWindow(QMainWindow):
         # Input fields and add button 
         # 1. Product name
         self.name_field = QLineEdit()
-        self.name_field.placeholderText("Product Name")
+        self.name_field.setPlaceholderText("Product Name")
 
         # 2. Product Quantity
         self.quantity_Kgs = QSpinBox()
-        self.quantity_Kgs.setRange(0)
-        self.quantity_Kgs.setPrefix("Kg")
-        self.quantity_Kgs.setPlaceholderText("Quantity")
+        self.quantity_Kgs.setRange(0, 100000000)
+        self.quantity_Kgs.setPrefix("Kg ")
 
         # 3. Product Price
         self.Price_Rs = QSpinBox()
-        self.Price_Rs.setRange(0)
-        self.Price_Rs.setPrefix("Rs")
-        self.Price_Rs.setPlaceholderText("Price")
+        self.Price_Rs.setRange(0,1000000000)
+        self.Price_Rs.setPrefix("Rs ")
+        # self.Price_Rs.setPlaceholderText("Price")
         
         # Button to add into list
         add_button = QPushButton("Add")
-            # TODO: Join Button with an adding function
-
+        add_button.clicked.connect(self.addRow)
 
         # adding widgets to header layout
-        HeaderLayout.addChildWidget(self.name_field)
-        HeaderLayout.addChildWidget(self.quantity_Kgs)
-        HeaderLayout.addChildLayout(self.Price_Rs)
-        HeaderLayout.addChildWidget(add_button)
+        HeaderLayout.addWidget(self.name_field)
+        HeaderLayout.addWidget(self.quantity_Kgs)
+        HeaderLayout.addWidget(self.Price_Rs)
+        HeaderLayout.addWidget(add_button)
 
         # creating table layout for the scrollable list
         # making part of class since we will manipulate it using add function
@@ -92,8 +90,8 @@ class MainWindow(QMainWindow):
 
         # adding both of these in the main layout
 
-        MainLayout.addChildLayout(HeaderLayout)
-        MainLayout.addChildLayout(self.table)
+        MainLayout.addLayout(HeaderLayout)
+        MainLayout.addWidget(self.table)
 
         # Central widget
         container = QWidget()
@@ -111,25 +109,25 @@ class MainWindow(QMainWindow):
 
         # Validation and Error throwing 
         if not ProductName :
-            QMessageBox.warning("Product Name field is empty")
+            QMessageBox.warning(self,"Error","Product Name field is empty")
             return 
         
         if not ProductQuantity: 
-            QMessageBox.warning("Product Quantity field is empty")
+            QMessageBox.warning(self,"Error","Product Quantity field is empty")
             return 
 
         if not ProductPrice:
-            QMessageBox.warning("Product Price field is empty")
+            QMessageBox.warning(self,"Error","Product Price field is empty")
             return 
         
         # Now adding row to the table   
         row_index = self.table.rowCount() # getting the number of the row where it will be inserted (like index)
-        self.table.indexAt(row_index) # adding an empty row at that index
+        self.table.insertRow(row_index) # adding an empty row at that index
             
             # Now populating data in that row
-        self.table.setItem(row_index,0,QTableWidget(ProductName))
-        self.table.setItem(row_index,1,QTableWidget(f"{ProductQuantity}"))
-        self.table.setItem(row_index,0,QTableWidget(f"{ProductPrice}"))
+        self.table.setItem(row_index,0,QTableWidgetItem(ProductName))
+        self.table.setItem(row_index,1,QTableWidgetItem(f"{ProductQuantity}"))
+        self.table.setItem(row_index,2,QTableWidgetItem(f"{ProductPrice}"))
 
             # Now adding a delete button at the end of each row
         deleteButton = QPushButton("Delete")
@@ -138,7 +136,7 @@ class MainWindow(QMainWindow):
         
         # clearing the input fields
         self.name_field.clear()
-        self.cost_input.setValue(0)
+        self.Price_Rs.setValue(0)
         self.quantity_Kgs.setValue(0)
 
     def deleteRow(self,row):
