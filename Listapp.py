@@ -6,6 +6,8 @@ from PyQt5.QtCore import Qt, QTimer, QDateTime, QSettings
 
 # Global variables
 headers = ["Product", "Quantity (Kg)", "Price (Rs)", "Actions"]
+Policy1 = "Please purchase sample before buying the product. Bought product will not be retured"
+Policy2 = "Only transfer online payment in the mentioned account number of the payment Method"
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -21,6 +23,18 @@ class MainWindow(QMainWindow):
 
         # Meta Data Layout
         self.MetaData_Layout = QGridLayout()
+
+        # Account number Layout
+        self.PaymentMethod_Layout = QVBoxLayout() 
+        
+        # payment pending radio buttons layout
+        self.radioButtons_Layout = QVBoxLayout()
+
+        # Text for Policy Points
+        self.Policy_Layout = QVBoxLayout()
+        
+        # Layout for QR Codes
+        self.QRLayout = QVBoxLayout()  # Changed to QVBoxLayout for proper vertical alignment
 
         # Loading last invoice number
         self.settings = QSettings("Sweet Bean", "InvoiceApp")
@@ -67,7 +81,6 @@ class MainWindow(QMainWindow):
         self.quantity_Kgs = QSpinBox()
         self.quantity_Kgs.setRange(0, 100000000)
         self.quantity_Kgs.setPrefix("Kg ")
-
         self.Price_Rs = QSpinBox()
         self.Price_Rs.setRange(0, 1000000000)
         self.Price_Rs.setPrefix("Rs ")
@@ -75,23 +88,46 @@ class MainWindow(QMainWindow):
         add_button = QPushButton("Add")
         add_button.clicked.connect(self.addRow)
 
-        # Adding widgets to header layout
+        # Adding Account Number / JazzCash 
+        self.PaymentMethod = QLineEdit()
+        self.PaymentMethod.setPlaceholderText("Enter Payment Method")
+        
+        # Adding Name for the Payment Method (Back Account, Jazz Cash, Easy Paisa)
+        self.AccountNumber = QLineEdit()
+        self.AccountNumber.setPlaceholderText("Enter Account number")
+        
+        # creating the Payment Radio Buttons
+        self.paymentDone_or_Pending()
+
+        # Policies notes
+        self.policy1 = QLineEdit()
+        self.policy2 = QLineEdit()
+        self.policy1.setText(Policy1)
+        self.policy2.setText(Policy2)
+        self.policy1.setEnabled(False)  # Disables the QLineEdit
+        self.policy2.setEnabled(False)  # Disables the QLineEdit
+        #++++++++++++++++++++++++++++++++++++++++++
+        # Adding Widgets to there respective Layout
+        #++++++++++++++++++++++++++++++++++++++++++
+
+        # ++ (1) ++ Adding widgets to header layout 
         self.HeaderLayout.addWidget(self.name_field)
         self.HeaderLayout.addWidget(self.quantity_Kgs)
         self.HeaderLayout.addWidget(self.Price_Rs)
         self.HeaderLayout.addWidget(add_button)
 
-        # Table for product list
+        # ++ (2) ++ Table for product list 
         self.table = QTableWidget()
         self.table.setColumnCount(4)
         self.table.setHorizontalHeaderLabels(headers)
         self.table.horizontalHeader().setStretchLastSection(True)
         self.table.verticalHeader().setVisible(False)
 
-       # Layout for QR Codes
-        self.QRLayout = QVBoxLayout()  # Changed to QVBoxLayout for proper vertical alignment
+        # ++ (3) ++ Adding Payment method and Account Number
+        self.PaymentMethod_Layout.addWidget(self.PaymentMethod)
+        self.PaymentMethod_Layout.addWidget(self.AccountNumber)
 
-        # Sub-layout for QR images (horizontal)
+        # ++ (4) ++ Sub-layout for QR images (horizontal) 
         QRImagesLayout = QHBoxLayout()
 
         # Generate and display QR Codes
@@ -120,19 +156,26 @@ class MainWindow(QMainWindow):
         # Sub-layout for QR labels (horizontal)
         QRLabelsLayout = QHBoxLayout()
         QRLabelsLayout.addWidget(fb_Label)
-        QRLabelsLayout.addWidget(insta_Label)
+        QRLabelsLayout.addWidget(insta_Label)      
 
         # Add both QR images and labels to the main QR layout
         self.QRLayout.addLayout(QRImagesLayout)
         self.QRLayout.addLayout(QRLabelsLayout)
-
-        # Add layouts to main layout
+        
+        # ++(5)++ adding Policies to there Layout
+        self.Policy_Layout.addWidget(self.policy1)
+        self.Policy_Layout.addWidget(self.policy2)
+        
+        # Add all layouts to main layout
         self.MainLayout.addLayout(self.MetaData_Layout)
         self.MainLayout.addLayout(self.HeaderLayout)
         self.MainLayout.addWidget(self.table)
+        self.MainLayout.addLayout(self.PaymentMethod_Layout)
+        self.MainLayout.addLayout(self.radioButtons_Layout)
         self.MainLayout.addLayout(self.QRLayout)  # Add QR Codes layout at the bottom
-
-        # Set central widget
+        self.MainLayout.addLayout(self.Policy_Layout)
+    
+        # Set central widget 
         container = QWidget()
         container.setLayout(self.MainLayout)
         self.setCentralWidget(container)
@@ -143,7 +186,7 @@ class MainWindow(QMainWindow):
             version=1,
             error_correction=qrcode.constants.ERROR_CORRECT_L,
             box_size=4,
-            border=4,
+            border=4,   
         )
         qr.add_data(url)
         qr.make(fit=True)
@@ -208,6 +251,26 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event):
         self.settings.setValue("last_invoice_number", self.last_invoice_number)
         event.accept()
+
+    def paymentDone_or_Pending(self):
+        # Create radio buttons for "Paid" and "Pending"
+        self.paid_radioBtn = QRadioButton("Paid")
+        self.pending_radioBtn = QRadioButton("Pending")
+
+        
+        # Adding in a button group to ensure mutaul exclusion
+        # only to apply mutual functionality on Buttons
+        self.button_group = QButtonGroup(self) 
+        self.button_group.addButton(self.paid_radioBtn)
+        self.button_group.addButton(self.pending_radioBtn)
+
+        # Adding to Layout
+        self.radioButtons_Layout.addWidget(self.paid_radioBtn)
+        self.radioButtons_Layout.addWidget(self.pending_radioBtn)
+
+
+
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
