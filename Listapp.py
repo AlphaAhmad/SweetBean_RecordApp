@@ -106,6 +106,13 @@ class MainWindow(QMainWindow):
         self.policy2.setText(Policy2)
         self.policy1.setEnabled(False)  # Disables the QLineEdit
         self.policy2.setEnabled(False)  # Disables the QLineEdit
+
+        # Total Sum Widget
+        self.total_sum_widget = QLineEdit()
+        self.total_sum_widget.setPlaceholderText("Total Sum (Rs)")
+        self.total_sum_widget.setReadOnly(True)  # Make it read-only
+        self.total_sum_widget.setAlignment(Qt.AlignRight)  # Align text to the right
+
         #++++++++++++++++++++++++++++++++++++++++++
         # Adding Widgets to there respective Layout
         #++++++++++++++++++++++++++++++++++++++++++
@@ -170,6 +177,7 @@ class MainWindow(QMainWindow):
         self.MainLayout.addLayout(self.MetaData_Layout)
         self.MainLayout.addLayout(self.HeaderLayout)
         self.MainLayout.addWidget(self.table)
+        self.MainLayout.addWidget(self.total_sum_widget)  # Add total sum widget below the table
         self.MainLayout.addLayout(self.PaymentMethod_Layout)
         self.MainLayout.addLayout(self.radioButtons_Layout)
         self.MainLayout.addLayout(self.QRLayout)  # Add QR Codes layout at the bottom
@@ -233,14 +241,18 @@ class MainWindow(QMainWindow):
         self.Price_Rs.setValue(0)
         self.quantity_Kgs.setValue(0)
 
+        # Update the total sum
+        self.update_total_sum()
+
     def deleteRow(self):
         button = self.sender()  # Get the button that was clicked
         if button:
             index = self.table.indexAt(button.pos())  # Find row from button position
-            print(index.data)
             if index.isValid():
                 self.table.removeRow(index.row())  # Delete the correct row
-    
+                # Update the total sum
+                self.update_total_sum()
+
     def UpdateTime(self):
         current_date_time = QDateTime.currentDateTime().toString("dd-MM-yyyy  hh:mm:ss")
         self.dateTime_Label.setText(current_date_time)
@@ -257,9 +269,7 @@ class MainWindow(QMainWindow):
         self.paid_radioBtn = QRadioButton("Paid")
         self.pending_radioBtn = QRadioButton("Pending")
 
-        
-        # Adding in a button group to ensure mutaul exclusion
-        # only to apply mutual functionality on Buttons
+        # Adding in a button group to ensure mutual exclusion
         self.button_group = QButtonGroup(self) 
         self.button_group.addButton(self.paid_radioBtn)
         self.button_group.addButton(self.pending_radioBtn)
@@ -268,8 +278,13 @@ class MainWindow(QMainWindow):
         self.radioButtons_Layout.addWidget(self.paid_radioBtn)
         self.radioButtons_Layout.addWidget(self.pending_radioBtn)
 
-
-
+    def update_total_sum(self):
+        total_sum = 0
+        for row in range(self.table.rowCount()):
+            price_item = self.table.item(row, 2)  # Get the price from column 2
+            if price_item:
+                total_sum += int(price_item.text())
+        self.total_sum_widget.setText(f"Total Sum: Rs {total_sum}")
 
 
 if __name__ == "__main__":
