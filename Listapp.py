@@ -1,290 +1,871 @@
 import sys
 import qrcode
 from PyQt5.QtWidgets import *
-from PyQt5.QtGui import QPalette, QColor, QPixmap, QImage
+from PyQt5.QtGui import QPixmap, QImage, QFont
 from PyQt5.QtCore import Qt, QTimer, QDateTime, QSettings
+from docx import Document
+from docx.shared import Inches
 
 # Global variables
 headers = ["Product", "Quantity (Kg)", "Price (Rs)", "Actions"]
-Policy1 = "Please purchase sample before buying the product. Bought product will not be retured"
-Policy2 = "Only transfer online payment in the mentioned account number of the payment Method"
+Policy1 = "Purchase sample before buying product. Bought product won't be refunded or Exchanged."
+Policy2 = "Only transfer online payment to the mentioned account number and payment detail."
+Whatsapp_link = "https://wa.me/message/A3RKKMMSAZGIF1"
+Insta_link = "https://www.instagram.com/sweetbean.info?utm_source=qr&igsh=cTJmY3IwaHlwNzJq"
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Sweet Bean")
-        self.setGeometry(100, 100, 600, 500)
+        self.setWindowTitle("Sweet Bean") 
+        self.setGeometry(100, 100, 700, 700)  # optimal window size
 
-        # Main Layout
-        self.MainLayout = QVBoxLayout()
-
-        # Header Layout
-        self.HeaderLayout = QHBoxLayout()
-
-        # Meta Data Layout
-        self.MetaData_Layout = QGridLayout()
-
-        # Account number Layout
-        self.PaymentMethod_Layout = QVBoxLayout() 
-        
-        # payment pending radio buttons layout
-        self.radioButtons_Layout = QVBoxLayout()
-
-        # Text for Policy Points
-        self.Policy_Layout = QVBoxLayout()
-        
-        # Layout for QR Codes
-        self.QRLayout = QVBoxLayout()  # Changed to QVBoxLayout for proper vertical alignment
-
-        # Loading last invoice number
+        # Initialize settings and last invoice number
         self.settings = QSettings("Sweet Bean", "InvoiceApp")
         self.last_invoice_number = self.settings.value("last_invoice_number", 0, int)
         if self.last_invoice_number == 0:
             self.last_invoice_number = 1
 
-        # Setting Up UI
-        self.SetUp_UI()
+        # Set up the UI
+        self.setup_ui()
 
-        # Auto Date And Time Widget
+        # Start the timer for auto-updating date and time
         self.timer = QTimer(self)
-        self.timer.timeout.connect(self.UpdateTime)
+        self.timer.timeout.connect(self.update_time)
         self.timer.start(1000)
 
-    def SetUp_UI(self):
-        # 1. Logo
-        Logo_Label = QLabel()
-        Logo = QPixmap("logo.jpeg")
-        scaled_Logo = Logo.scaled(120, 120, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-        Logo_Label.setPixmap(scaled_Logo)
-        Logo_Label.setAlignment(Qt.AlignCenter)
-        self.MetaData_Layout.addWidget(Logo_Label, 0, 0, 1, 2)
+    def setup_ui(self):
+        """Set up the main UI components."""
+        # Main widget and layout
+        main_widget = QWidget()
+        main_layout = QVBoxLayout(main_widget)
+        main_layout.setContentsMargins(20, 20, 20, 40)
+        main_layout.setSpacing(15)
 
-        # 2. Date and Time
-        self.dateTime_Label = QLabel()
-        self.dateTime_Label.setAlignment(Qt.AlignCenter)
-        self.MetaData_Layout.addWidget(self.dateTime_Label, 1, 0, 1, 2)
+        # Add metadata section (logo, date/time, invoice, NTN)
+        main_layout.addLayout(self.create_metadata_layout())
 
-        # 3. Invoice and NTN
-        self.Invoice_label = QLabel()
-        self.Invoice_label.setAlignment(Qt.AlignCenter)
-        self.update_Invoice_Widget()
-        self.MetaData_Layout.addWidget(self.Invoice_label, 2, 0)
+        # Add input fields and add button
+        main_layout.addLayout(self.create_input_layout())
 
-        self.NTN_label = QLineEdit()
-        self.NTN_label.setPlaceholderText("Enter NTN number")
-        self.MetaData_Layout.addWidget(self.NTN_label, 2, 1)
+        # Add the table for product list
+        self.table = self.create_table()
+        main_layout.addWidget(self.table)
 
-        # Input Fields & Add Button
-        self.name_field = QLineEdit()
-        self.name_field.setPlaceholderText("Product Name")
+        # Add total sum widget
+        self.total_sum_widget = self.create_total_sum_widget()
+        main_layout.addWidget(self.total_sum_widget)
 
-        self.quantity_Kgs = QSpinBox()
-        self.quantity_Kgs.setRange(0, 100000000)
-        self.quantity_Kgs.setPrefix("Kg ")
-        self.Price_Rs = QSpinBox()
-        self.Price_Rs.setRange(0, 1000000000)
-        self.Price_Rs.setPrefix("Rs ")
+        # Add payment method and account number
+        main_layout.addLayout(self.create_payment_layout())
 
-        add_button = QPushButton("Add")
-        add_button.clicked.connect(self.addRow)
+        # Add radio buttons for payment status
+        main_layout.addLayout(self.create_payment_status_layout())
 
-        # Adding Account Number / JazzCash 
-        self.PaymentMethod = QLineEdit()
-        self.PaymentMethod.setPlaceholderText("Enter Payment Method")
-        
-        # Adding Name for the Payment Method (Back Account, Jazz Cash, Easy Paisa)
-        self.AccountNumber = QLineEdit()
-        self.AccountNumber.setPlaceholderText("Enter Account number")
-        
-        # creating the Payment Radio Buttons
-        self.paymentDone_or_Pending()
+        # Add QR codes and labels
+        main_layout.addLayout(self.create_qr_layout())
 
-        # Policies notes
-        self.policy1 = QLineEdit()
-        self.policy2 = QLineEdit()
-        self.policy1.setText(Policy1)
-        self.policy2.setText(Policy2)
-        self.policy1.setEnabled(False)  # Disables the QLineEdit
-        self.policy2.setEnabled(False)  # Disables the QLineEdit
+        # Add policy notes
+        main_layout.addLayout(self.create_policy_layout())
 
-        # Total Sum Widget
-        self.total_sum_widget = QLineEdit()
-        self.total_sum_widget.setPlaceholderText("Total Sum (Rs)")
-        self.total_sum_widget.setReadOnly(True)  # Make it read-only
-        self.total_sum_widget.setAlignment(Qt.AlignRight)  # Align text to the right
+        # Add Save button
+        save_button = QPushButton("Save as DOC")
+        save_button.clicked.connect(self.save_as_doc)
+        main_layout.addWidget(save_button)
 
-        #++++++++++++++++++++++++++++++++++++++++++
-        # Adding Widgets to there respective Layout
-        #++++++++++++++++++++++++++++++++++++++++++
+        # Add a scroll area to make the window scrollable
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setWidget(main_widget)
 
-        # ++ (1) ++ Adding widgets to header layout 
-        self.HeaderLayout.addWidget(self.name_field)
-        self.HeaderLayout.addWidget(self.quantity_Kgs)
-        self.HeaderLayout.addWidget(self.Price_Rs)
-        self.HeaderLayout.addWidget(add_button)
+        # Set the central widget
+        self.setCentralWidget(scroll_area)
 
-        # ++ (2) ++ Table for product list 
-        self.table = QTableWidget()
-        self.table.setColumnCount(4)
-        self.table.setHorizontalHeaderLabels(headers)
-        self.table.horizontalHeader().setStretchLastSection(True)
-        self.table.verticalHeader().setVisible(False)
+        # Apply dark theme stylesheet
+        self.setStyleSheet("""
+            QMainWindow {
+                background-color: #2d2d2d;
+            }
+            QLabel {
+                font-size: 14px;
+                color: #ffffff;
+            }
+            QLineEdit, QSpinBox, QComboBox {
+                font-size: 14px;
+                padding: 8px;
+                border: 1px solid #555;
+                border-radius: 4px;
+                background-color: #3d3d3d;
+                color: #ffffff;
+            }
+            QPushButton {
+                font-size: 14px;
+                padding: 8px 16px;
+                background-color: #007bff;
+                color: white;
+                border: none;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #0056b3;
+            }
+            QTableWidget {
+                font-size: 14px;
+                border: 1px solid #555;
+                border-radius: 4px;
+                background-color: #3d3d3d;
+                color: #ffffff;
+            }
+            QTableWidget::item {
+                padding: 8px;
+            }
+            QHeaderView::section {
+                background-color: #007bff;
+                color: white;
+                padding: 8px;
+                font-size: 14px;
+            }
+            QRadioButton {
+                font-size: 14px;
+                color: #ffffff;
+            }
+            QLineEdit[readOnly="true"] {
+                background-color: #555;
+                color: #ffffff;
+            }
+            QScrollArea {
+                border: none;
+            }
+        """)
 
-        # ++ (3) ++ Adding Payment method and Account Number
-        self.PaymentMethod_Layout.addWidget(self.PaymentMethod)
-        self.PaymentMethod_Layout.addWidget(self.AccountNumber)
+    def create_metadata_layout(self):
+        """Create the metadata layout (logo, date/time, invoice, NTN, and Reset Button)."""
+        layout = QGridLayout()
+        layout.setSpacing(15)
 
-        # ++ (4) ++ Sub-layout for QR images (horizontal) 
-        QRImagesLayout = QHBoxLayout()
+        # Reset Invoice Button (Top Left)
+        self.reset_invoice_btn = QPushButton("Reset Invoice")
+        self.reset_invoice_btn.clicked.connect(self.reset_invoice_number)
+        layout.addWidget(self.reset_invoice_btn, 0, 0, 1, 2)  # Positioned at the top left
 
-        # Generate and display QR Codes
-        facebook_qr = self.generate_qr("https://www.facebook.com/your_page")
-        instagram_qr = self.generate_qr("https://www.instagram.com/your_profile")
+        # Logo
+        logo_label = QLabel()
+        logo = QPixmap("logo.jpeg")
+        scaled_logo = logo.scaled(120, 120, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        logo_label.setPixmap(scaled_logo)
+        logo_label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(logo_label, 1, 0, 1, 2)
 
-        self.FB_QR_Label = QLabel()
-        self.FB_QR_Label.setPixmap(self.qr_to_pixmap(facebook_qr))
-        self.FB_QR_Label.setAlignment(Qt.AlignCenter)
+        # Date and Time
+        self.date_time_label = QLabel()
+        self.date_time_label.setAlignment(Qt.AlignCenter)
+        self.date_time_label.setFont(QFont("Arial", 12))
+        layout.addWidget(self.date_time_label, 2, 0, 1, 2)
 
-        self.IG_QR_Label = QLabel()
-        self.IG_QR_Label.setPixmap(self.qr_to_pixmap(instagram_qr))
-        self.IG_QR_Label.setAlignment(Qt.AlignCenter)
+        # Invoice Number (Separate Row)
+        invoice_text_label = QLabel("Invoice Number:")
+        invoice_text_label.setFont(QFont("Arial", 12, QFont.Bold))
+        self.invoice_label = QLabel(f"{self.last_invoice_number}")
+        self.invoice_label.setFont(QFont("Arial", 12, QFont.Bold))
+        layout.addWidget(invoice_text_label, 3, 0)
+        layout.addWidget(self.invoice_label, 3, 1)
 
-        # Add QR images to the horizontal layout
-        QRImagesLayout.addWidget(self.FB_QR_Label)
-        QRImagesLayout.addWidget(self.IG_QR_Label)
+        # NTN (Separate Row)
+        self.ntn_text_label = QLineEdit() # TODO
+        self.ntn_text_label.setPlaceholderText("Enter NTN number")
+        self.ntn_text_label.setFont(QFont("Arial", 12, QFont.Bold))
+        layout.addWidget(self.ntn_text_label, 4, 0)
+        return layout
 
-        # Labels for QR indicating which one is for Facebook and Instagram
-        fb_Label  = QLabel("Visit our Facebook")
-        insta_Label  = QLabel("Visit our Instagram")
 
-        fb_Label.setAlignment(Qt.AlignCenter)
-        insta_Label.setAlignment(Qt.AlignCenter)
+    def create_input_layout(self):
+        """Create the input layout (product name, quantity, price, add button)."""
+        layout = QHBoxLayout()
+        layout.setSpacing(10)
 
-        # Sub-layout for QR labels (horizontal)
-        QRLabelsLayout = QHBoxLayout()
-        QRLabelsLayout.addWidget(fb_Label)
-        QRLabelsLayout.addWidget(insta_Label)      
+        self.name_input = QLineEdit()
+        self.name_input.setPlaceholderText("Product Name")
 
-        # Add both QR images and labels to the main QR layout
-        self.QRLayout.addLayout(QRImagesLayout)
-        self.QRLayout.addLayout(QRLabelsLayout)
-        
-        # ++(5)++ adding Policies to there Layout
-        self.Policy_Layout.addWidget(self.policy1)
-        self.Policy_Layout.addWidget(self.policy2)
-        
-        # Add all layouts to main layout
-        self.MainLayout.addLayout(self.MetaData_Layout)
-        self.MainLayout.addLayout(self.HeaderLayout)
-        self.MainLayout.addWidget(self.table)
-        self.MainLayout.addWidget(self.total_sum_widget)  # Add total sum widget below the table
-        self.MainLayout.addLayout(self.PaymentMethod_Layout)
-        self.MainLayout.addLayout(self.radioButtons_Layout)
-        self.MainLayout.addLayout(self.QRLayout)  # Add QR Codes layout at the bottom
-        self.MainLayout.addLayout(self.Policy_Layout)
-    
-        # Set central widget 
-        container = QWidget()
-        container.setLayout(self.MainLayout)
-        self.setCentralWidget(container)
+        self.quantity_input = QSpinBox()
+        self.quantity_input.setRange(0, 100000000)
+        self.quantity_input.setPrefix("Kg ")
 
-    # Function to generate QR Code
+        self.price_input = QSpinBox()
+        self.price_input.setRange(0, 1000000000)
+        self.price_input.setPrefix("Rs ")
+
+        add_button = QPushButton("Add Product")
+        add_button.clicked.connect(self.add_row)
+
+        layout.addWidget(self.name_input)
+        layout.addWidget(self.quantity_input)
+        layout.addWidget(self.price_input)
+        layout.addWidget(add_button)
+
+        return layout
+
+    def create_table(self):
+        """Create and configure the table for product list."""
+        table = QTableWidget()
+        table.setColumnCount(4)
+        table.setHorizontalHeaderLabels(headers)
+        table.horizontalHeader().setStretchLastSection(True)
+        table.verticalHeader().setVisible(False)
+        table.setSelectionBehavior(QTableWidget.SelectRows)
+        table.setEditTriggers(QTableWidget.NoEditTriggers)
+
+        # Set row height to make rows bigger
+        table.verticalHeader().setDefaultSectionSize(40)  # Adjust row height
+
+        # Set table size to show at least 3-4 rows
+        table.setMinimumHeight(160)  # 4 rows * 40px height
+
+        return table
+
+    def create_total_sum_widget(self):
+        """Create the total sum widget."""
+        total_sum_widget = QLineEdit()
+        total_sum_widget.setPlaceholderText("Total Sum (Rs)")
+        total_sum_widget.setReadOnly(True)
+        total_sum_widget.setAlignment(Qt.AlignRight)
+        total_sum_widget.setFont(QFont("Arial", 12, QFont.Bold))
+        return total_sum_widget
+
+    def create_payment_layout(self):
+        """Create the payment method and account number layout."""
+        layout = QVBoxLayout()
+        layout.setSpacing(10)
+
+        self.payment_method_input = QLineEdit()
+        self.payment_method_input.setPlaceholderText("Enter Payment Method")
+
+        self.account_number_input = QLineEdit()
+        self.account_number_input.setPlaceholderText("Enter Account Number")
+
+        layout.addWidget(QLabel("Payment Details"))
+        layout.addWidget(self.payment_method_input)
+        layout.addWidget(self.account_number_input)
+
+        return layout
+
+    def create_payment_status_layout(self):
+        """Create the payment status radio buttons layout."""
+        layout = QVBoxLayout()
+        layout.setSpacing(10)
+
+        self.paid_radio = QRadioButton("Paid")
+        self.pending_radio = QRadioButton("Pending")
+
+        button_group = QButtonGroup(self)
+        button_group.addButton(self.paid_radio)
+        button_group.addButton(self.pending_radio)
+
+        layout.addWidget(QLabel("Payment Status"))
+        layout.addWidget(self.paid_radio)
+        layout.addWidget(self.pending_radio)
+
+        return layout
+
+    def create_qr_layout(self):
+        """Create the QR codes layout."""
+        layout = QVBoxLayout()
+        layout.setSpacing(10)
+
+        # Generate and display QR codes
+        Whatsapp_qr = self.generate_qr(Whatsapp_link)
+        instagram_qr = self.generate_qr(Insta_link)
+
+        fb_qr_label = QLabel()
+        fb_qr_label.setPixmap(self.qr_to_pixmap(Whatsapp_qr))
+        fb_qr_label.setAlignment(Qt.AlignCenter)
+
+        ig_qr_label = QLabel()
+        ig_qr_label.setPixmap(self.qr_to_pixmap(instagram_qr))
+        ig_qr_label.setAlignment(Qt.AlignCenter)
+
+        # Labels for QR codes
+        fb_label = QLabel("Visit our Whatsapp")
+        ig_label = QLabel("Visit our Instagram")
+        fb_label.setAlignment(Qt.AlignCenter)
+        ig_label.setAlignment(Qt.AlignCenter)
+
+        # Add QR codes and labels to the layout
+        qr_images_layout = QHBoxLayout()
+        qr_images_layout.addWidget(fb_qr_label)
+        qr_images_layout.addWidget(ig_qr_label)
+
+        qr_labels_layout = QHBoxLayout()
+        qr_labels_layout.addWidget(fb_label)
+        qr_labels_layout.addWidget(ig_label)
+
+        layout.addWidget(QLabel("Scan QR Codes"))
+        layout.addLayout(qr_images_layout)
+        layout.addLayout(qr_labels_layout)
+
+        return layout
+
+    def create_policy_layout(self):
+        """Create the policy notes layout."""
+        layout = QVBoxLayout()
+        layout.setSpacing(10)
+
+        self.policy1_input = QLineEdit(Policy1)
+        self.policy1_input.setEnabled(False)
+
+        self.policy2_input = QLineEdit(Policy2)
+        self.policy2_input.setEnabled(False)
+
+        layout.addWidget(QLabel("Policies"))
+        layout.addWidget(self.policy1_input)
+        layout.addWidget(self.policy2_input)
+
+        return layout
+
     def generate_qr(self, url):
+        """Generate a QR code for the given URL."""
         qr = qrcode.QRCode(
             version=1,
             error_correction=qrcode.constants.ERROR_CORRECT_L,
             box_size=4,
-            border=4,   
+            border=4,
         )
         qr.add_data(url)
         qr.make(fit=True)
         return qr.make_image(fill="black", back_color="white")
 
-    # Convert QR to QPixmap for display
     def qr_to_pixmap(self, qr_img):
+        """Convert a QR code image to a QPixmap."""
         qr_img = qr_img.convert("RGB")
         width, height = qr_img.size
         data = qr_img.tobytes("raw", "RGB")
         qimage = QImage(data, width, height, QImage.Format_RGB888)
         return QPixmap.fromImage(qimage)
 
-    # Function to validate and add values into the table row
-    def addRow(self):
-        ProductName = self.name_field.text()
-        ProductQuantity = self.quantity_Kgs.value()
-        ProductPrice = self.Price_Rs.value()
+    def add_row(self):
+        """Add a new row to the table."""
+        product_name = self.name_input.text()
+        quantity = self.quantity_input.value()
+        price = self.price_input.value()
 
-        if not ProductName:
-            QMessageBox.warning(self, "Error", "Product Name field is empty")
+        if not product_name:
+            QMessageBox.warning(self, "Error", "Product Name field is empty.")
             return
 
-        if not ProductQuantity:
-            QMessageBox.warning(self, "Error", "Product Quantity field is empty")
+        if not quantity:
+            QMessageBox.warning(self, "Error", "Quantity field is empty.")
             return
 
-        if not ProductPrice:
-            QMessageBox.warning(self, "Error", "Product Price field is empty")
+        if not price:
+            QMessageBox.warning(self, "Error", "Price field is empty.")
             return
 
         row_index = self.table.rowCount()
         self.table.insertRow(row_index)
 
-        self.table.setItem(row_index, 0, QTableWidgetItem(ProductName))
-        self.table.setItem(row_index, 1, QTableWidgetItem(f"{ProductQuantity}"))
-        self.table.setItem(row_index, 2, QTableWidgetItem(f"{ProductPrice}"))
+        self.table.setItem(row_index, 0, QTableWidgetItem(product_name))
+        self.table.setItem(row_index, 1, QTableWidgetItem(f"{quantity}"))
+        self.table.setItem(row_index, 2, QTableWidgetItem(f"{price}"))
 
-        deleteButton = QPushButton("Delete")
-        deleteButton.clicked.connect(lambda: self.deleteRow())
-        self.table.setCellWidget(row_index, 3, deleteButton)
+        # Create a smaller delete button
+        delete_button = QPushButton("Delete")
+        delete_button.setFixedSize(90, 25)  # Set button size (width, height)
+        delete_button.clicked.connect(self.delete_row)
 
-        self.name_field.clear()
-        self.Price_Rs.setValue(0)
-        self.quantity_Kgs.setValue(0)
+        # Center the text inside the button using stylesheet
+        delete_button.setStyleSheet("""
+            QPushButton {
+                text-align: center;  /* Center the text horizontally */
+                padding: 0px;        /* Remove padding to ensure text is centered */
+                margin: 0px;         /* Remove margin to ensure text is centered */
+            }
+        """)
+
+        # Center the button in its column
+        button_widget = QWidget()
+        button_layout = QHBoxLayout(button_widget)
+        button_layout.addWidget(delete_button)
+        button_layout.setAlignment(Qt.AlignCenter)  # Center the button
+        button_layout.setContentsMargins(0, 0, 0, 0)  # Remove margins
+
+        self.table.setCellWidget(row_index, 3, button_widget)
+
+        # Clear input fields
+        self.name_input.clear()
+        self.quantity_input.setValue(0)
+        self.price_input.setValue(0)
 
         # Update the total sum
         self.update_total_sum()
 
-    def deleteRow(self):
-        button = self.sender()  # Get the button that was clicked
+    def delete_row(self):
+        """Delete a row from the table."""
+        button = self.sender()
         if button:
-            index = self.table.indexAt(button.pos())  # Find row from button position
+            index = self.table.indexAt(button.pos())
             if index.isValid():
-                self.table.removeRow(index.row())  # Delete the correct row
-                # Update the total sum
+                self.table.removeRow(index.row())
                 self.update_total_sum()
 
-    def UpdateTime(self):
-        current_date_time = QDateTime.currentDateTime().toString("dd-MM-yyyy  hh:mm:ss")
-        self.dateTime_Label.setText(current_date_time)
+    def update_time(self):
+        """Update the date and time label."""
+        current_time = QDateTime.currentDateTime().toString("dd-MM-yyyy  hh:mm:ss")
+        self.date_time_label.setText(current_time)
 
-    def update_Invoice_Widget(self):
-        self.Invoice_label.setText(f"Invoice number: {self.last_invoice_number}")
+    def update_invoice_label(self):
+        """Update the invoice label."""
+        self.invoice_label.setText(f"Invoice number: {self.last_invoice_number}")
 
-    def closeEvent(self, event):
-        self.settings.setValue("last_invoice_number", self.last_invoice_number)
-        event.accept()
+    def increment_Invoice_number(self):
+        self.last_invoice_number+=1
+        self.update_invoice_label()
 
-    def paymentDone_or_Pending(self):
-        # Create radio buttons for "Paid" and "Pending"
-        self.paid_radioBtn = QRadioButton("Paid")
-        self.pending_radioBtn = QRadioButton("Pending")
+    def reset_invoice_number(self):
+        """Reset invoice number to 1 and update the UI."""
+        self.last_invoice_number = 1
+        self.settings.setValue("last_invoice_number", self.last_invoice_number)  # Store in QSettings
+        self.invoice_label.setText(str(self.last_invoice_number))  # Update UI
+        QMessageBox.information(self, "Invoice Reset", "Invoice number has been reset to 1.")
 
-        # Adding in a button group to ensure mutual exclusion
-        self.button_group = QButtonGroup(self) 
-        self.button_group.addButton(self.paid_radioBtn)
-        self.button_group.addButton(self.pending_radioBtn)
-
-        # Adding to Layout
-        self.radioButtons_Layout.addWidget(self.paid_radioBtn)
-        self.radioButtons_Layout.addWidget(self.pending_radioBtn)
 
     def update_total_sum(self):
+        """Calculate and update the total sum of prices in the table."""
         total_sum = 0
         for row in range(self.table.rowCount()):
-            price_item = self.table.item(row, 2)  # Get the price from column 2
+            price_item = self.table.item(row, 2)
             if price_item:
                 total_sum += int(price_item.text())
         self.total_sum_widget.setText(f"Total Sum: Rs {total_sum}")
+
+
+    """Save the entire document as a .docx file."""
+    def save_as_doc(self):
+        try:
+            doc = Document()
+
+            # Add logo and brand name
+            doc.add_heading("Sweet Bean", level=0).alignment = 1  # Center align brand name
+            logo_path = "logo.jpeg"  # Path to your logo file
+            if logo_path:
+                doc.add_picture(logo_path, width=Inches(1.5))  # Add logo with a width of 1.5 inches
+                last_paragraph = doc.paragraphs[-1]
+                last_paragraph.alignment = 1  # Center align the logo
+
+            # Add invoice details
+            doc.add_paragraph(f"Invoice Number: {self.last_invoice_number}")
+            doc.add_paragraph(f"Date and Time: {self.date_time_label.text()}")
+
+            # Retrieve NTN number from the input field
+            ntn_number = self.ntn_text_label.text()  # Use self.ntn_text_label instead of self.ntn_label
+            if not ntn_number:
+                QMessageBox.warning(self, "Error", "NTN number is empty. Please enter the NTN number.")
+                return
+            doc.add_paragraph(f"NTN: {ntn_number}")
+
+            # Add table
+            table = doc.add_table(rows=1, cols=3)
+            table.style = "Table Grid"
+            hdr_cells = table.rows[0].cells
+            headers_to_save = ["Item", "Quantity", "Price"]  # Ensure headers are defined
+            for i, header in enumerate(headers_to_save):
+                hdr_cells[i].text = header
+
+            for row in range(self.table.rowCount()):
+                row_cells = table.add_row().cells
+                for col in range(3):
+                    item = self.table.item(row, col)
+                    row_cells[col].text = item.text() if item else ""
+
+            # Add total sum
+            doc.add_paragraph(f"Total Sum: {self.total_sum_widget.text()}")
+
+            # Add payment details
+            doc.add_heading("Payment Details", level=2)
+            doc.add_paragraph(f"Payment Method: {self.payment_method_input.text()}")
+            doc.add_paragraph(f"Account Number: {self.account_number_input.text()}")
+            doc.add_paragraph(f"Payment Status: {'Paid' if self.paid_radio.isChecked() else 'Pending'}")
+
+            # Add policies
+            doc.add_heading("Policies", level=2)
+            doc.add_paragraph(Policy1)
+            doc.add_paragraph(Policy2)
+
+            # Add spacing above QR codes
+            doc.add_paragraph()  # Add an empty paragraph for spacing
+
+            # Add QR codes side by side
+            doc.add_heading("QR Codes", level=2)
+
+            # Create a table with 2 columns for QR codes
+            qr_table = doc.add_table(rows=1, cols=2)
+            qr_table.autofit = True  # Automatically adjust column widths
+            qr_cells = qr_table.rows[0].cells
+
+            # Generate and add WhatsApp QR code
+            whatsapp_qr = self.generate_qr(Whatsapp_link)
+            whatsapp_qr_path = "whatsapp_qr.png"
+            whatsapp_qr.save(whatsapp_qr_path)
+
+            whatsapp_paragraph = qr_cells[0].paragraphs[0]
+            run = whatsapp_paragraph.add_run()
+            run.add_picture(whatsapp_qr_path, width=Inches(1.5))  # Add QR code
+            whatsapp_paragraph.alignment = 1  # Center align
+            whatsapp_paragraph.add_run("\nVisit our WhatsApp").bold = True  # Add label below in the same paragraph
+
+            # Generate and add Instagram QR code
+            instagram_qr = self.generate_qr(Insta_link)
+            instagram_qr_path = "instagram_qr.png"
+            instagram_qr.save(instagram_qr_path)
+
+            instagram_paragraph = qr_cells[1].paragraphs[0]
+            run = instagram_paragraph.add_run()
+            run.add_picture(instagram_qr_path, width=Inches(1.5))  # Add QR code
+            instagram_paragraph.alignment = 1  # Center align
+            instagram_paragraph.add_run("\nVisit our Instagram").bold = True  # Add label below in the same paragraph
+
+            # Save the document
+            file_path, _ = QFileDialog.getSaveFileName(self, "Save Document", "", "Word Files (*.docx)")
+            if file_path:
+                if not file_path.endswith(".docx"):
+                    file_path += ".docx"  # Ensure the file has a .docx extension
+                doc.save(file_path)
+                QMessageBox.information(self, "Success", "Document saved successfully!")
+                self.increment_Invoice_number()  # Increment the invoice number
+
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"An error occurred while saving the document: {str(e)}")
+    
+    def closeEvent(self, event):
+        """Save the last invoice number when the window is closed."""
+        self.settings.setValue("last_invoice_number", self.last_invoice_number)
+        event.accept()
+
+    def create_table(self):
+        """Create and configure the table for product list."""
+        table = QTableWidget()
+        table.setColumnCount(4)
+        table.setHorizontalHeaderLabels(headers)
+        table.horizontalHeader().setStretchLastSection(True)
+        table.verticalHeader().setVisible(False)
+        table.setSelectionBehavior(QTableWidget.SelectRows)
+        table.setEditTriggers(QTableWidget.NoEditTriggers)
+
+        # Set row height to make rows bigger
+        table.verticalHeader().setDefaultSectionSize(40)  # Adjust row height
+
+        # Set table size to show at least 3-4 rows
+        table.setMinimumHeight(160)  # 4 rows * 40px height
+
+        return table
+
+    def create_total_sum_widget(self):
+        """Create the total sum widget."""
+        total_sum_widget = QLineEdit()
+        total_sum_widget.setPlaceholderText("Total Sum (Rs)")
+        total_sum_widget.setReadOnly(True)
+        total_sum_widget.setAlignment(Qt.AlignRight)
+        total_sum_widget.setFont(QFont("Arial", 12, QFont.Bold))
+        return total_sum_widget
+
+    def create_payment_layout(self):
+        """Create the payment method and account number layout."""
+        layout = QVBoxLayout()
+        layout.setSpacing(10)
+
+        self.payment_method_input = QLineEdit()
+        self.payment_method_input.setPlaceholderText("Enter Payment Method")
+
+        self.account_number_input = QLineEdit()
+        self.account_number_input.setPlaceholderText("Enter Account Number")
+
+        layout.addWidget(QLabel("Payment Details"))
+        layout.addWidget(self.payment_method_input)
+        layout.addWidget(self.account_number_input)
+
+        return layout
+
+    def create_payment_status_layout(self):
+        """Create the payment status radio buttons layout."""
+        layout = QVBoxLayout()
+        layout.setSpacing(10)
+
+        self.paid_radio = QRadioButton("Paid")
+        self.pending_radio = QRadioButton("Pending")
+
+        button_group = QButtonGroup(self)
+        button_group.addButton(self.paid_radio)
+        button_group.addButton(self.pending_radio)
+
+        layout.addWidget(QLabel("Payment Status"))
+        layout.addWidget(self.paid_radio)
+        layout.addWidget(self.pending_radio)
+
+        return layout
+
+    def create_qr_layout(self):
+        """Create the QR codes layout."""
+        layout = QVBoxLayout()
+        layout.setSpacing(10)
+
+        # Generate and display QR codes
+        Whatsapp_qr = self.generate_qr(Whatsapp_link)
+        instagram_qr = self.generate_qr(Insta_link)
+
+        fb_qr_label = QLabel()
+        fb_qr_label.setPixmap(self.qr_to_pixmap(Whatsapp_qr))
+        fb_qr_label.setAlignment(Qt.AlignCenter)
+
+        ig_qr_label = QLabel()
+        ig_qr_label.setPixmap(self.qr_to_pixmap(instagram_qr))
+        ig_qr_label.setAlignment(Qt.AlignCenter)
+
+        # Labels for QR codes
+        fb_label = QLabel("Visit our Whatsapp")
+        ig_label = QLabel("Visit our Instagram")
+        fb_label.setAlignment(Qt.AlignCenter)
+        ig_label.setAlignment(Qt.AlignCenter)
+
+        # Add QR codes and labels to the layout
+        qr_images_layout = QHBoxLayout()
+        qr_images_layout.addWidget(fb_qr_label)
+        qr_images_layout.addWidget(ig_qr_label)
+
+        qr_labels_layout = QHBoxLayout()
+        qr_labels_layout.addWidget(fb_label)
+        qr_labels_layout.addWidget(ig_label)
+
+        layout.addWidget(QLabel("Scan QR Codes"))
+        layout.addLayout(qr_images_layout)
+        layout.addLayout(qr_labels_layout)
+
+        return layout
+
+    def create_policy_layout(self):
+        """Create the policy notes layout."""
+        layout = QVBoxLayout()
+        layout.setSpacing(10)
+
+        self.policy1_input = QLineEdit(Policy1)
+        self.policy1_input.setEnabled(False)
+
+        self.policy2_input = QLineEdit(Policy2)
+        self.policy2_input.setEnabled(False)
+
+        layout.addWidget(QLabel("Policies"))
+        layout.addWidget(self.policy1_input)
+        layout.addWidget(self.policy2_input)
+
+        return layout
+
+    def generate_qr(self, url):
+        """Generate a QR code for the given URL."""
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=qrcode.constants.ERROR_CORRECT_L,
+            box_size=4,
+            border=4,
+        )
+        qr.add_data(url)
+        qr.make(fit=True)
+        return qr.make_image(fill="black", back_color="white")
+
+    def qr_to_pixmap(self, qr_img):
+        """Convert a QR code image to a QPixmap."""
+        qr_img = qr_img.convert("RGB")
+        width, height = qr_img.size
+        data = qr_img.tobytes("raw", "RGB")
+        qimage = QImage(data, width, height, QImage.Format_RGB888)
+        return QPixmap.fromImage(qimage)
+
+    def add_row(self):
+        """Add a new row to the table."""
+        product_name = self.name_input.text()
+        quantity = self.quantity_input.value()
+        price = self.price_input.value()
+
+        if not product_name:
+            QMessageBox.warning(self, "Error", "Product Name field is empty.")
+            return
+
+        if not quantity:
+            QMessageBox.warning(self, "Error", "Quantity field is empty.")
+            return
+
+        if not price:
+            QMessageBox.warning(self, "Error", "Price field is empty.")
+            return
+
+        row_index = self.table.rowCount()
+        self.table.insertRow(row_index)
+
+        self.table.setItem(row_index, 0, QTableWidgetItem(product_name))
+        self.table.setItem(row_index, 1, QTableWidgetItem(f"{quantity}"))
+        self.table.setItem(row_index, 2, QTableWidgetItem(f"{price}"))
+
+        # Create a smaller delete button
+        delete_button = QPushButton("Delete")
+        delete_button.setFixedSize(90, 25)  # Set button size (width, height)
+        delete_button.clicked.connect(self.delete_row)
+
+        # Center the text inside the button using stylesheet
+        delete_button.setStyleSheet("""
+            QPushButton {
+                text-align: center;  /* Center the text horizontally */
+                padding: 0px;        /* Remove padding to ensure text is centered */
+                margin: 0px;         /* Remove margin to ensure text is centered */
+            }
+        """)
+
+        # Center the button in its column
+        button_widget = QWidget()
+        button_layout = QHBoxLayout(button_widget)
+        button_layout.addWidget(delete_button)
+        button_layout.setAlignment(Qt.AlignCenter)  # Center the button
+        button_layout.setContentsMargins(0, 0, 0, 0)  # Remove margins
+
+        self.table.setCellWidget(row_index, 3, button_widget)
+
+        # Clear input fields
+        self.name_input.clear()
+        self.quantity_input.setValue(0)
+        self.price_input.setValue(0)
+
+        # Update the total sum
+        self.update_total_sum()
+
+    def delete_row(self):
+        """Delete a row from the table."""
+        button = self.sender()
+        if button:
+            index = self.table.indexAt(button.pos())
+            if index.isValid():
+                self.table.removeRow(index.row())
+                self.update_total_sum()
+
+    def update_time(self):
+        """Update the date and time label."""
+        current_time = QDateTime.currentDateTime().toString("dd-MM-yyyy  hh:mm:ss")
+        self.date_time_label.setText(current_time)
+
+    def update_invoice_label(self):
+        """Update the invoice label."""
+        self.invoice_label.setText(f"Invoice number: {self.last_invoice_number}")
+
+    def increment_Invoice_number(self):
+        self.last_invoice_number+=1
+        self.update_invoice_label()
+
+    def reset_invoice_number(self):
+        """Reset invoice number to 1 and update the UI."""
+        self.last_invoice_number = 1
+        self.settings.setValue("last_invoice_number", self.last_invoice_number)  # Store in QSettings
+        self.invoice_label.setText(str(self.last_invoice_number))  # Update UI
+        QMessageBox.information(self, "Invoice Reset", "Invoice number has been reset to 1.")
+
+
+    def update_total_sum(self):
+        """Calculate and update the total sum of prices in the table."""
+        total_sum = 0
+        for row in range(self.table.rowCount()):
+            price_item = self.table.item(row, 2)
+            if price_item:
+                total_sum += int(price_item.text())
+        self.total_sum_widget.setText(f"Total Sum: Rs {total_sum}")
+
+
+    """Save the entire document as a .docx file."""
+    def save_as_doc(self):
+        try:
+                doc = Document()
+
+                # Add logo and brand name
+                doc.add_heading("Sweet Bean", level=0).alignment = 1  # Center align brand name
+                logo_path = "logo.jpeg"  # Path to your logo file
+                if logo_path:
+                    doc.add_picture(logo_path, width=Inches(1.5))  # Add logo with a width of 1.5 inches
+                    last_paragraph = doc.paragraphs[-1]
+                    last_paragraph.alignment = 1  # Center align the logo
+
+                # Add invoice details
+                doc.add_paragraph(f"Invoice Number: {self.last_invoice_number}")
+                doc.add_paragraph(f"Date and Time: {self.date_time_label.text()}")
+                doc.add_paragraph(f"NTN: {self.ntn_text_label.text()}")
+
+                # Add table
+                table = doc.add_table(rows=1, cols=3)
+                table.style = "Table Grid"
+                hdr_cells = table.rows[0].cells
+                headers_to_save = ["Item", "Quantity", "Price"]  # Ensure headers are defined
+                for i, header in enumerate(headers_to_save):
+                    hdr_cells[i].text = header
+
+                for row in range(self.table.rowCount()):
+                    row_cells = table.add_row().cells
+                    for col in range(3):
+                        item = self.table.item(row, col)
+                        row_cells[col].text = item.text() if item else ""
+
+                # Add total sum
+                doc.add_paragraph(f"Total Sum: {self.total_sum_widget.text()}")
+
+                # Add payment details
+                doc.add_heading("Payment Details", level=2)
+                doc.add_paragraph(f"Payment Method: {self.payment_method_input.text()}")
+                doc.add_paragraph(f"Account Number: {self.account_number_input.text()}")
+                doc.add_paragraph(f"Payment Status: {'Paid' if self.paid_radio.isChecked() else 'Pending'}")
+
+                # Add policies
+                doc.add_heading("Policies", level=2)
+                doc.add_paragraph(Policy1)
+                doc.add_paragraph(Policy2)
+
+                # Add spacing above QR codes
+                doc.add_paragraph()  # Add an empty paragraph for spacing
+
+                # Add QR codes side by side (Ensuring they stay together)
+                doc.add_heading("QR Codes", level=2)
+
+                # Create a table with 2 columns for QR codes
+                qr_table = doc.add_table(rows=1, cols=2)
+                qr_table.autofit = True  # Automatically adjust column widths
+                qr_cells = qr_table.rows[0].cells
+
+                # Generate and add WhatsApp QR code
+                whatsapp_qr = self.generate_qr(Whatsapp_link)
+                whatsapp_qr_path = "whatsapp_qr.png"
+                whatsapp_qr.save(whatsapp_qr_path)
+
+                whatsapp_paragraph = qr_cells[0].paragraphs[0]
+                run = whatsapp_paragraph.add_run()
+                run.add_picture(whatsapp_qr_path, width=Inches(1.5))  # Add QR code
+                whatsapp_paragraph.alignment = 1  # Center align
+                whatsapp_paragraph.add_run("\nVisit our WhatsApp").bold = True  # Add label below in the same paragraph
+
+                # Generate and add Instagram QR code
+                instagram_qr = self.generate_qr(Insta_link)
+                instagram_qr_path = "instagram_qr.png"
+                instagram_qr.save(instagram_qr_path)
+
+                instagram_paragraph = qr_cells[1].paragraphs[0]
+                run = instagram_paragraph.add_run()
+                run.add_picture(instagram_qr_path, width=Inches(1.5))  # Add QR code
+                instagram_paragraph.alignment = 1  # Center align
+                instagram_paragraph.add_run("\nVisit our Instagram").bold = True  # Add label below in the same paragraph
+
+                # Save the document
+                file_path, _ = QFileDialog.getSaveFileName(self, "Save Document", "", "Word Files (*.docx)")
+                if file_path:
+                    if not file_path.endswith(".docx"):
+                        file_path += ".docx"  # Ensure the file has a .docx extension
+                    doc.save(file_path)
+                    QMessageBox.information(self, "Success", "Document saved successfully!")
+                    self.increment_Invoice_number()  # increments the invoice number
+
+        except Exception as e:
+                QMessageBox.critical(self, "Error", f"An error occurred while saving the document: {str(e)}")
+    
+    def closeEvent(self, event):
+        """Save the last invoice number when the window is closed."""
+        self.settings.setValue("last_invoice_number", self.last_invoice_number)
+        event.accept()
 
 
 if __name__ == "__main__":
