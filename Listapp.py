@@ -46,7 +46,7 @@ class MainWindow(QMainWindow):
 
     def setup_ui(self):
         """Set up the main UI components."""
-        
+
         # Main content widget
         self.main_widget = QWidget()
         self.main_layout = QVBoxLayout(self.main_widget)
@@ -56,6 +56,9 @@ class MainWindow(QMainWindow):
         # Sections of the UI
         self.main_layout.addLayout(self.create_metadata_layout())   # Logo, Date, Invoice, NTN
         self.main_layout.addLayout(self.create_input_layout())      # Input fields + Add button
+
+        # Add Customer Name and Address fields
+        self.main_layout.addLayout(self.create_customer_details_layout())  # Customer Name and Address
 
         # Table for product list
         self.table = self.create_table()
@@ -92,6 +95,7 @@ class MainWindow(QMainWindow):
 
         # Set the central widget
         self.setCentralWidget(self.scroll_area)
+
         # Apply dark theme stylesheet
         self.setStyleSheet("""
             QMainWindow {
@@ -188,6 +192,28 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.ntn_text_label, 4, 0)
         return layout
 
+    def create_customer_details_layout(self):
+        """Create the layout for Customer Name and Address."""
+        layout = QVBoxLayout()
+        layout.setSpacing(10)
+
+        # Customer Name
+        self.customer_name_label = QLabel("Customer Name:")
+        self.customer_name_input = QLineEdit()
+        self.customer_name_input.setPlaceholderText("Enter Customer Name")
+
+        # Customer Address
+        self.customer_address_label = QLabel("Customer Address:")
+        self.customer_address_input = QLineEdit()
+        self.customer_address_input.setPlaceholderText("Enter Customer Address")
+
+        # Add widgets to the layout
+        layout.addWidget(self.customer_name_label)
+        layout.addWidget(self.customer_name_input)
+        layout.addWidget(self.customer_address_label)
+        layout.addWidget(self.customer_address_input)
+
+        return layout
 
     def create_input_layout(self):
         """Create the input layout (product name, quantity, price, add button)."""
@@ -241,41 +267,6 @@ class MainWindow(QMainWindow):
         total_sum_widget.setAlignment(Qt.AlignRight)
         total_sum_widget.setFont(QFont("Arial", 12, QFont.Bold))
         return total_sum_widget
-
-    def create_payment_layout(self):
-        """Create the payment method and account number layout."""
-        layout = QVBoxLayout()
-        layout.setSpacing(10)
-
-        self.payment_method_input = QLineEdit()
-        self.payment_method_input.setPlaceholderText("Enter Payment Method")
-
-        self.account_number_input = QLineEdit()
-        self.account_number_input.setPlaceholderText("Enter Account Number")
-
-        layout.addWidget(QLabel("Payment Details"))
-        layout.addWidget(self.payment_method_input)
-        layout.addWidget(self.account_number_input)
-
-        return layout
-
-    def create_payment_status_layout(self):
-        """Create the payment status radio buttons layout."""
-        layout = QVBoxLayout()
-        layout.setSpacing(10)
-
-        self.paid_radio = QRadioButton("Paid")
-        self.pending_radio = QRadioButton("Pending")
-
-        button_group = QButtonGroup(self)
-        button_group.addButton(self.paid_radio)
-        button_group.addButton(self.pending_radio)
-
-        layout.addWidget(QLabel("Payment Status"))
-        layout.addWidget(self.paid_radio)
-        layout.addWidget(self.pending_radio)
-
-        return layout
 
     def create_qr_layout(self):
         """Create the QR codes layout."""
@@ -437,7 +428,6 @@ class MainWindow(QMainWindow):
         self.invoice_label.setText(str(self.last_invoice_number))  # Update UI
         QMessageBox.information(self, "Invoice Reset", "Invoice number has been reset to 1.")
 
-
     def update_total_sum(self):
         """Calculate and update the total sum of prices in the table."""
         total_sum = 0
@@ -480,19 +470,38 @@ class MainWindow(QMainWindow):
         return total_sum_widget
 
     def create_payment_layout(self):
-        """Create the payment method and account number layout."""
+        """Create the payment method and account number layout with two pairs of fields."""
         layout = QVBoxLayout()
         layout.setSpacing(10)
 
-        self.payment_method_input = QLineEdit()
-        self.payment_method_input.setPlaceholderText("Enter Payment Method")
+        # First Payment Method and Account Number
+        self.payment_method1_label = QLabel("Payment Method 1:")
+        self.payment_method_input1 = QLineEdit()
+        self.payment_method_input1.setPlaceholderText("e.g., Bank Transfer")
 
-        self.account_number_input = QLineEdit()
-        self.account_number_input.setPlaceholderText("Enter Account Number")
+        self.account_number1_label = QLabel("Account Number 1:")
+        self.account_number_input1 = QLineEdit()
+        self.account_number_input1.setPlaceholderText("e.g., 1234-5678-9012")
 
+        # Second Payment Method and Account Number
+        self.payment_method2_label = QLabel("Payment Method 2:")
+        self.payment_method_input2 = QLineEdit()
+        self.payment_method_input2.setPlaceholderText("e.g., Easypaisa")
+
+        self.account_number2_label = QLabel("Account Number 2:")
+        self.account_number_input2 = QLineEdit()
+        self.account_number_input2.setPlaceholderText("e.g., 0312-3456789")
+
+        # Add widgets to the layout
         layout.addWidget(QLabel("Payment Details"))
-        layout.addWidget(self.payment_method_input)
-        layout.addWidget(self.account_number_input)
+        layout.addWidget(self.payment_method1_label)
+        layout.addWidget(self.payment_method_input1)
+        layout.addWidget(self.account_number1_label)
+        layout.addWidget(self.account_number_input1)
+        layout.addWidget(self.payment_method2_label)
+        layout.addWidget(self.payment_method_input2)
+        layout.addWidget(self.account_number2_label)
+        layout.addWidget(self.account_number_input2)
 
         return layout
 
@@ -772,6 +781,10 @@ class MainWindow(QMainWindow):
             doc.add_paragraph(f"Date and Time: {self.date_time_label.text()}")
             doc.add_paragraph(f"NTN: {self.ntn_text_label.text()}")
 
+            # Add Customer Name and Address
+            doc.add_paragraph(f"Customer Name: {self.customer_name_input.text()}")
+            doc.add_paragraph(f"Customer Address: {self.customer_address_input.text()}")
+
             # Add table
             table = doc.add_table(rows=1, cols=3)
             table.style = "Table Grid"
@@ -791,8 +804,10 @@ class MainWindow(QMainWindow):
 
             # Add payment details
             doc.add_heading("Payment Details", level=2)
-            doc.add_paragraph(f"Payment Method: {self.payment_method_input.text()}")
-            doc.add_paragraph(f"Account Number: {self.account_number_input.text()}")
+            doc.add_paragraph(f"Payment Method 1: {self.payment_method_input1.text()}")
+            doc.add_paragraph(f"Account Number 1: {self.account_number_input1.text()}")
+            doc.add_paragraph(f"Payment Method 2: {self.payment_method_input2.text()}")
+            doc.add_paragraph(f"Account Number 2: {self.account_number_input2.text()}")
             doc.add_paragraph(f"Payment Status: {'Paid' if self.paid_radio.isChecked() else 'Pending'}")
 
             # Add policies
