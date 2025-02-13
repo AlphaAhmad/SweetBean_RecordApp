@@ -1,10 +1,13 @@
 import sys
+import os
 import qrcode
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import QPixmap, QImage, QFont, QTextOption
 from PyQt5.QtCore import Qt, QTimer, QDateTime, QSettings
 from docx import Document
+from PyQt5.QtPrintSupport import QPrintDialog, QPrinter
 from docx.shared import Inches
+from docx2pdf import convert  # Requires docx2pdf library
 
 # Global variables
 headers = ["Product", "Quantity (Kg)", "Price (Rs)", "Actions"]
@@ -25,12 +28,6 @@ class MainWindow(QMainWindow):
         self.last_invoice_number = self.settings.value("last_invoice_number", 0, int)
         if self.last_invoice_number == 0:
             self.last_invoice_number = 1
-
-        # Fixed policies that should always be loaded but not saved
-        # self.fixed_policies = [
-        #     "No refunds after 7 days of purchase.",
-        #     "Customers must retain the receipt for exchanges."
-        # ]
 
         # Load user-defined policies from settings (excluding fixed ones)
         saved_policies = self.settings.value("policies", [], list)
@@ -82,6 +79,11 @@ class MainWindow(QMainWindow):
         self.save_button = QPushButton("Save as DOC")
         self.save_button.clicked.connect(self.save_as_doc)
         self.main_layout.addWidget(self.save_button)
+
+        # Print button (save and go to print log at the same time)
+        self.print_button = QPushButton("Save and print")
+        self.print_button.clicked.connect(self.print_document)
+        self.main_layout.addWidget(self.print_button)
 
         # Scrollable Area for Large Content
         self.scroll_area = QScrollArea()
@@ -445,7 +447,6 @@ class MainWindow(QMainWindow):
                 total_sum += int(price_item.text())
         self.total_sum_widget.setText(f"Total Sum: Rs {total_sum}")
 
-    
     def closeEvent(self, event):
         """Save the last invoice number when the window is closed."""
         self.settings.setValue("last_invoice_number", self.last_invoice_number)
@@ -550,23 +551,6 @@ class MainWindow(QMainWindow):
         layout.addLayout(qr_labels_layout)
 
         return layout
-
-    # def create_policy_layout(self):
-    #     """Create the policy notes layout."""
-    #     layout = QVBoxLayout()
-    #     layout.setSpacing(10)
-
-    #     self.policy1_input = QLineEdit(Policy1)
-    #     self.policy1_input.setEnabled(False)
-
-    #     self.policy2_input = QLineEdit(Policy2)
-    #     self.policy2_input.setEnabled(False)
-
-    #     layout.addWidget(QLabel("Policies"))
-    #     layout.addWidget(self.policy1_input)
-    #     layout.addWidget(self.policy2_input)
-
-    #     return layout
 
     def generate_qr(self, url):
         """Generate a QR code for the given URL."""
@@ -673,7 +657,6 @@ class MainWindow(QMainWindow):
         self.invoice_label.setText(str(self.last_invoice_number))  # Update UI
         QMessageBox.information(self, "Invoice Reset", "Invoice number has been reset to 1.")
 
-
     def update_total_sum(self):
         """Calculate and update the total sum of prices in the table."""
         total_sum = 0
@@ -717,9 +700,6 @@ class MainWindow(QMainWindow):
         group_box.setLayout(layout)  # Set layout to the group box
         return group_box  # Return a QWidget (QGroupBox)
 
-
-
-
     def add_policy(self):
         """Add a new policy to the list."""
         new_policy = self.new_policy_input.toPlainText().strip()  # Use toPlainText() for QTextEdit
@@ -733,13 +713,12 @@ class MainWindow(QMainWindow):
         else:
             QMessageBox.warning(self, "Error", "Policy field is empty.")
 
-
     def delete_policy(self, item):
         """Delete a policy from the list."""
         row = self.policy_list_widget.row(item)
         if row != -1:
-            policy_text = self.policies[row]  # Get text from the stored list
-            del self.policies[row]  # Remove from list
+            policy_text = self.policies[row-2]  # Get text from the stored list
+            del self.policies[row-2]  # Remove from list
             self.policy_list_widget.takeItem(row)  # Remove from UI
 
             # Save updated policies
@@ -868,11 +847,32 @@ class MainWindow(QMainWindow):
                 doc.save(file_path)
                 QMessageBox.information(self, "Success", "Document saved successfully!")
                 self.increment_Invoice_number()  # Increment the invoice number
-
+            return file_path
         except Exception as e:
             QMessageBox.critical(self, "Error", f"An error occurred while saving the document: {str(e)}")
         
+    def print_document(self):
+            """Save the document and open the print dialog."""
+            # Save the document to a temporary file
+            file_path = self.save_as_doc()
+            if not file_path:
+                return  # Exit if saving failed
 
+            # Open the document and print it
+            printer = QPrinter(QPrinter.HighResolution)
+            print_dialog = QPrintDialog(printer, self)
+
+            if print_dialog.exec_() == QPrintDialog.Accepted:
+                # Print the document    
+                try:
+                    # Convert the .docx file to PDF
+                    pdf_path = file_path.replace(".docx", ".pdf")
+                    convert(file_path, pdf_path)
+
+                    # Print the PDF
+                    os.startfile(pdf_path, "print")  # Windows-specific command to print
+                except Exception as e:
+                    QMessageBox.critical(self, "Error", f"An error occurred while printing: {str(e)}")
 
     def closeEvent(self, event):
         """Save the last invoice number when the window is closed."""
