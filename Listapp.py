@@ -1,7 +1,7 @@
 import sys
 import qrcode
 from PyQt5.QtWidgets import *
-from PyQt5.QtGui import QPixmap, QImage, QFont
+from PyQt5.QtGui import QPixmap, QImage, QFont, QTextOption
 from PyQt5.QtCore import Qt, QTimer, QDateTime, QSettings
 from docx import Document
 from docx.shared import Inches
@@ -10,20 +10,33 @@ from docx.shared import Inches
 headers = ["Product", "Quantity (Kg)", "Price (Rs)", "Actions"]
 Policy1 = "Purchase sample before buying product. Bought product won't be refunded or Exchanged."
 Policy2 = "Only transfer online payment to the mentioned account number and payment detail."
+Fixed_Policy_List = [Policy1,Policy2]
 Whatsapp_link = "https://wa.me/message/A3RKKMMSAZGIF1"
 Insta_link = "https://www.instagram.com/sweetbean.info?utm_source=qr&igsh=cTJmY3IwaHlwNzJq"
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Sweet Bean") 
-        self.setGeometry(100, 100, 700, 700)  # optimal window size
+        self.setWindowTitle("Sweet Bean")
+        self.setGeometry(100, 100, 700, 700)  # Optimal window size
 
         # Initialize settings and last invoice number
         self.settings = QSettings("Sweet Bean", "InvoiceApp")
         self.last_invoice_number = self.settings.value("last_invoice_number", 0, int)
         if self.last_invoice_number == 0:
             self.last_invoice_number = 1
+
+        # Fixed policies that should always be loaded but not saved
+        # self.fixed_policies = [
+        #     "No refunds after 7 days of purchase.",
+        #     "Customers must retain the receipt for exchanges."
+        # ]
+
+        # Load user-defined policies from settings (excluding fixed ones)
+        saved_policies = self.settings.value("policies", [], list)
+        
+        # Filter out duplicates (Avoid saving fixed policies)
+        self.policies = [p for p in saved_policies if p not in Fixed_Policy_List]
 
         # Set up the UI
         self.setup_ui()
@@ -33,53 +46,50 @@ class MainWindow(QMainWindow):
         self.timer.timeout.connect(self.update_time)
         self.timer.start(1000)
 
+
     def setup_ui(self):
         """Set up the main UI components."""
-        # Main widget and layout
-        main_widget = QWidget()
-        main_layout = QVBoxLayout(main_widget)
-        main_layout.setContentsMargins(20, 20, 20, 40)
-        main_layout.setSpacing(15)
+        
+        # Main content widget
+        self.main_widget = QWidget()
+        self.main_layout = QVBoxLayout(self.main_widget)
+        self.main_layout.setContentsMargins(20, 20, 20, 40)
+        self.main_layout.setSpacing(15)
 
-        # Add metadata section (logo, date/time, invoice, NTN)
-        main_layout.addLayout(self.create_metadata_layout())
+        # Sections of the UI
+        self.main_layout.addLayout(self.create_metadata_layout())   # Logo, Date, Invoice, NTN
+        self.main_layout.addLayout(self.create_input_layout())      # Input fields + Add button
 
-        # Add input fields and add button
-        main_layout.addLayout(self.create_input_layout())
-
-        # Add the table for product list
+        # Table for product list
         self.table = self.create_table()
-        main_layout.addWidget(self.table)
+        self.main_layout.addWidget(self.table)
 
-        # Add total sum widget
+        # Total sum widget
         self.total_sum_widget = self.create_total_sum_widget()
-        main_layout.addWidget(self.total_sum_widget)
+        self.main_layout.addWidget(self.total_sum_widget)
 
-        # Add payment method and account number
-        main_layout.addLayout(self.create_payment_layout())
+        # Payment section
+        self.main_layout.addLayout(self.create_payment_layout())       # Payment method & account
+        self.main_layout.addLayout(self.create_payment_status_layout()) # Payment status radio buttons
 
-        # Add radio buttons for payment status
-        main_layout.addLayout(self.create_payment_status_layout())
+        # QR codes
+        self.main_layout.addLayout(self.create_qr_layout())
 
-        # Add QR codes and labels
-        main_layout.addLayout(self.create_qr_layout())
+        # Policy Notes Section
+        self.main_layout.addWidget(self.create_policy_layout())
 
-        # Add policy notes
-        main_layout.addLayout(self.create_policy_layout())
+        # Save button
+        self.save_button = QPushButton("Save as DOC")
+        self.save_button.clicked.connect(self.save_as_doc)
+        self.main_layout.addWidget(self.save_button)
 
-        # Add Save button
-        save_button = QPushButton("Save as DOC")
-        save_button.clicked.connect(self.save_as_doc)
-        main_layout.addWidget(save_button)
-
-        # Add a scroll area to make the window scrollable
-        scroll_area = QScrollArea()
-        scroll_area.setWidgetResizable(True)
-        scroll_area.setWidget(main_widget)
+        # Scrollable Area for Large Content
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setWidget(self.main_widget)
 
         # Set the central widget
-        self.setCentralWidget(scroll_area)
-
+        self.setCentralWidget(self.scroll_area)
         # Apply dark theme stylesheet
         self.setStyleSheet("""
             QMainWindow {
@@ -435,103 +445,6 @@ class MainWindow(QMainWindow):
                 total_sum += int(price_item.text())
         self.total_sum_widget.setText(f"Total Sum: Rs {total_sum}")
 
-
-    """Save the entire document as a .docx file."""
-    def save_as_doc(self):
-        try:
-            doc = Document()
-
-            # Add logo and brand name
-            doc.add_heading("Sweet Bean", level=0).alignment = 1  # Center align brand name
-            logo_path = "logo.jpeg"  # Path to your logo file
-            if logo_path:
-                doc.add_picture(logo_path, width=Inches(1.5))  # Add logo with a width of 1.5 inches
-                last_paragraph = doc.paragraphs[-1]
-                last_paragraph.alignment = 1  # Center align the logo
-
-            # Add invoice details
-            doc.add_paragraph(f"Invoice Number: {self.last_invoice_number}")
-            doc.add_paragraph(f"Date and Time: {self.date_time_label.text()}")
-
-            # Retrieve NTN number from the input field
-            ntn_number = self.ntn_text_label.text()  # Use self.ntn_text_label instead of self.ntn_label
-            if not ntn_number:
-                QMessageBox.warning(self, "Error", "NTN number is empty. Please enter the NTN number.")
-                return
-            doc.add_paragraph(f"NTN: {ntn_number}")
-
-            # Add table
-            table = doc.add_table(rows=1, cols=3)
-            table.style = "Table Grid"
-            hdr_cells = table.rows[0].cells
-            headers_to_save = ["Item", "Quantity", "Price"]  # Ensure headers are defined
-            for i, header in enumerate(headers_to_save):
-                hdr_cells[i].text = header
-
-            for row in range(self.table.rowCount()):
-                row_cells = table.add_row().cells
-                for col in range(3):
-                    item = self.table.item(row, col)
-                    row_cells[col].text = item.text() if item else ""
-
-            # Add total sum
-            doc.add_paragraph(f"Total Sum: {self.total_sum_widget.text()}")
-
-            # Add payment details
-            doc.add_heading("Payment Details", level=2)
-            doc.add_paragraph(f"Payment Method: {self.payment_method_input.text()}")
-            doc.add_paragraph(f"Account Number: {self.account_number_input.text()}")
-            doc.add_paragraph(f"Payment Status: {'Paid' if self.paid_radio.isChecked() else 'Pending'}")
-
-            # Add policies
-            doc.add_heading("Policies", level=2)
-            doc.add_paragraph(Policy1)
-            doc.add_paragraph(Policy2)
-
-            # Add spacing above QR codes
-            doc.add_paragraph()  # Add an empty paragraph for spacing
-
-            # Add QR codes side by side
-            doc.add_heading("QR Codes", level=2)
-
-            # Create a table with 2 columns for QR codes
-            qr_table = doc.add_table(rows=1, cols=2)
-            qr_table.autofit = True  # Automatically adjust column widths
-            qr_cells = qr_table.rows[0].cells
-
-            # Generate and add WhatsApp QR code
-            whatsapp_qr = self.generate_qr(Whatsapp_link)
-            whatsapp_qr_path = "whatsapp_qr.png"
-            whatsapp_qr.save(whatsapp_qr_path)
-
-            whatsapp_paragraph = qr_cells[0].paragraphs[0]
-            run = whatsapp_paragraph.add_run()
-            run.add_picture(whatsapp_qr_path, width=Inches(1.5))  # Add QR code
-            whatsapp_paragraph.alignment = 1  # Center align
-            whatsapp_paragraph.add_run("\nVisit our WhatsApp").bold = True  # Add label below in the same paragraph
-
-            # Generate and add Instagram QR code
-            instagram_qr = self.generate_qr(Insta_link)
-            instagram_qr_path = "instagram_qr.png"
-            instagram_qr.save(instagram_qr_path)
-
-            instagram_paragraph = qr_cells[1].paragraphs[0]
-            run = instagram_paragraph.add_run()
-            run.add_picture(instagram_qr_path, width=Inches(1.5))  # Add QR code
-            instagram_paragraph.alignment = 1  # Center align
-            instagram_paragraph.add_run("\nVisit our Instagram").bold = True  # Add label below in the same paragraph
-
-            # Save the document
-            file_path, _ = QFileDialog.getSaveFileName(self, "Save Document", "", "Word Files (*.docx)")
-            if file_path:
-                if not file_path.endswith(".docx"):
-                    file_path += ".docx"  # Ensure the file has a .docx extension
-                doc.save(file_path)
-                QMessageBox.information(self, "Success", "Document saved successfully!")
-                self.increment_Invoice_number()  # Increment the invoice number
-
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"An error occurred while saving the document: {str(e)}")
     
     def closeEvent(self, event):
         """Save the last invoice number when the window is closed."""
@@ -638,22 +551,22 @@ class MainWindow(QMainWindow):
 
         return layout
 
-    def create_policy_layout(self):
-        """Create the policy notes layout."""
-        layout = QVBoxLayout()
-        layout.setSpacing(10)
+    # def create_policy_layout(self):
+    #     """Create the policy notes layout."""
+    #     layout = QVBoxLayout()
+    #     layout.setSpacing(10)
 
-        self.policy1_input = QLineEdit(Policy1)
-        self.policy1_input.setEnabled(False)
+    #     self.policy1_input = QLineEdit(Policy1)
+    #     self.policy1_input.setEnabled(False)
 
-        self.policy2_input = QLineEdit(Policy2)
-        self.policy2_input.setEnabled(False)
+    #     self.policy2_input = QLineEdit(Policy2)
+    #     self.policy2_input.setEnabled(False)
 
-        layout.addWidget(QLabel("Policies"))
-        layout.addWidget(self.policy1_input)
-        layout.addWidget(self.policy2_input)
+    #     layout.addWidget(QLabel("Policies"))
+    #     layout.addWidget(self.policy1_input)
+    #     layout.addWidget(self.policy2_input)
 
-        return layout
+    #     return layout
 
     def generate_qr(self, url):
         """Generate a QR code for the given URL."""
@@ -770,98 +683,197 @@ class MainWindow(QMainWindow):
                 total_sum += int(price_item.text())
         self.total_sum_widget.setText(f"Total Sum: Rs {total_sum}")
 
+    def create_policy_layout(self):
+        """Create the policy notes section as a QWidget."""
+        group_box = QGroupBox("Policies")  # Group box to contain policies
+        layout = QVBoxLayout()
+        layout.setSpacing(10)
+
+        # Policy list widget
+        self.policy_list_widget = QListWidget()
+
+        # Add fixed policies first
+        for policy in Fixed_Policy_List:
+            self.add_policy_to_list(policy, fixed=True)
+
+        # Add user-defined policies
+        for policy in self.policies:
+            self.add_policy_to_list(policy)
+
+        # Input field for new policies
+        self.new_policy_input = QTextEdit()
+        self.new_policy_input.setPlaceholderText("Enter a new policy")
+        self.new_policy_input.setFixedHeight(50)
+
+        # Add Policy button
+        add_policy_button = QPushButton("Add Policy")
+        add_policy_button.clicked.connect(self.add_policy)
+
+        # Add widgets to layout
+        layout.addWidget(self.policy_list_widget)
+        layout.addWidget(self.new_policy_input)
+        layout.addWidget(add_policy_button)
+
+        group_box.setLayout(layout)  # Set layout to the group box
+        return group_box  # Return a QWidget (QGroupBox)
+
+
+
+
+    def add_policy(self):
+        """Add a new policy to the list."""
+        new_policy = self.new_policy_input.toPlainText().strip()  # Use toPlainText() for QTextEdit
+        if new_policy: 
+            self.policies.append(new_policy)  # Add to the list
+            self.add_policy_to_list(new_policy)  # Add to the UI
+            self.new_policy_input.clear()  # Clear the input field
+
+            # Save policies to settings
+            self.settings.setValue("policies", self.policies)
+        else:
+            QMessageBox.warning(self, "Error", "Policy field is empty.")
+
+
+    def delete_policy(self, item):
+        """Delete a policy from the list."""
+        row = self.policy_list_widget.row(item)
+        if row != -1:
+            policy_text = self.policies[row]  # Get text from the stored list
+            del self.policies[row]  # Remove from list
+            self.policy_list_widget.takeItem(row)  # Remove from UI
+
+            # Save updated policies
+            self.settings.setValue("policies", self.policies)
+
+
+    def add_policy_to_list(self, policy, fixed=False):
+        """Add a policy to the list widget with an optional delete button."""
+        item = QListWidgetItem()
+        self.policy_list_widget.addItem(item)
+
+        # Create a QTextEdit for policy text (to enable word wrapping)
+        policy_text = QTextEdit(policy)
+        policy_text.setReadOnly(True)
+        policy_text.setFrameStyle(QFrame.NoFrame)
+        policy_text.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        policy_text.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        policy_text.setFixedHeight(50)
+
+        # Create a widget layout
+        widget = QWidget()
+        widget_layout = QHBoxLayout(widget)
+        widget_layout.addWidget(policy_text)
+
+        # Only add delete button for non-fixed policies
+        if not fixed:
+            delete_button = QPushButton("Delete")
+            delete_button.setFixedSize(60, 25)
+            delete_button.clicked.connect(lambda: self.delete_policy(item))
+            widget_layout.addWidget(delete_button)
+
+        widget_layout.setContentsMargins(0, 0, 0, 0)
+        item.setSizeHint(widget.sizeHint())
+        self.policy_list_widget.setItemWidget(item, widget)
 
     """Save the entire document as a .docx file."""
     def save_as_doc(self):
         try:
-                doc = Document()
+            doc = Document()
 
-                # Add logo and brand name
-                doc.add_heading("Sweet Bean", level=0).alignment = 1  # Center align brand name
-                logo_path = "logo.jpeg"  # Path to your logo file
-                if logo_path:
-                    doc.add_picture(logo_path, width=Inches(1.5))  # Add logo with a width of 1.5 inches
-                    last_paragraph = doc.paragraphs[-1]
-                    last_paragraph.alignment = 1  # Center align the logo
+            # Add logo and brand name
+            doc.add_heading("Sweet Bean", level=0).alignment = 1  # Center align brand name
+            logo_path = "logo.jpeg"  # Path to your logo file
+            if logo_path:
+                doc.add_picture(logo_path, width=Inches(1.5))  # Add logo with a width of 1.5 inches
+                last_paragraph = doc.paragraphs[-1]
+                last_paragraph.alignment = 1  # Center align the logo
 
-                # Add invoice details
-                doc.add_paragraph(f"Invoice Number: {self.last_invoice_number}")
-                doc.add_paragraph(f"Date and Time: {self.date_time_label.text()}")
-                doc.add_paragraph(f"NTN: {self.ntn_text_label.text()}")
+            # Add invoice details
+            doc.add_paragraph(f"Invoice Number: {self.last_invoice_number}")
+            doc.add_paragraph(f"Date and Time: {self.date_time_label.text()}")
+            doc.add_paragraph(f"NTN: {self.ntn_text_label.text()}")
 
-                # Add table
-                table = doc.add_table(rows=1, cols=3)
-                table.style = "Table Grid"
-                hdr_cells = table.rows[0].cells
-                headers_to_save = ["Item", "Quantity", "Price"]  # Ensure headers are defined
-                for i, header in enumerate(headers_to_save):
-                    hdr_cells[i].text = header
+            # Add table
+            table = doc.add_table(rows=1, cols=3)
+            table.style = "Table Grid"
+            hdr_cells = table.rows[0].cells
+            headers_to_save = ["Item", "Quantity", "Price"]  # Ensure headers are defined
+            for i, header in enumerate(headers_to_save):
+                hdr_cells[i].text = header
 
-                for row in range(self.table.rowCount()):
-                    row_cells = table.add_row().cells
-                    for col in range(3):
-                        item = self.table.item(row, col)
-                        row_cells[col].text = item.text() if item else ""
+            for row in range(self.table.rowCount()):
+                row_cells = table.add_row().cells
+                for col in range(3):
+                    item = self.table.item(row, col)
+                    row_cells[col].text = item.text() if item else ""
 
-                # Add total sum
-                doc.add_paragraph(f"Total Sum: {self.total_sum_widget.text()}")
+            # Add total sum
+            doc.add_paragraph(f"Total Sum: {self.total_sum_widget.text()}")
 
-                # Add payment details
-                doc.add_heading("Payment Details", level=2)
-                doc.add_paragraph(f"Payment Method: {self.payment_method_input.text()}")
-                doc.add_paragraph(f"Account Number: {self.account_number_input.text()}")
-                doc.add_paragraph(f"Payment Status: {'Paid' if self.paid_radio.isChecked() else 'Pending'}")
+            # Add payment details
+            doc.add_heading("Payment Details", level=2)
+            doc.add_paragraph(f"Payment Method: {self.payment_method_input.text()}")
+            doc.add_paragraph(f"Account Number: {self.account_number_input.text()}")
+            doc.add_paragraph(f"Payment Status: {'Paid' if self.paid_radio.isChecked() else 'Pending'}")
 
-                # Add policies
-                doc.add_heading("Policies", level=2)
-                doc.add_paragraph(Policy1)
-                doc.add_paragraph(Policy2)
+            # Add policies
+            doc.add_heading("Policies", level=2)
+            
+            # Add default policies
+            doc.add_paragraph(Policy1)
+            doc.add_paragraph(Policy2)
+            
+            # Add user-defined policies
+            for policy in self.policies:  # Iterate through the list of policies
+                doc.add_paragraph(policy)
 
-                # Add spacing above QR codes
-                doc.add_paragraph()  # Add an empty paragraph for spacing
+            # Add spacing above QR codes
+            doc.add_paragraph()  # Add an empty paragraph for spacing
 
-                # Add QR codes side by side (Ensuring they stay together)
-                doc.add_heading("QR Codes", level=2)
+            # Add QR codes side by side
+            doc.add_heading("QR Codes", level=2)
 
-                # Create a table with 2 columns for QR codes
-                qr_table = doc.add_table(rows=1, cols=2)
-                qr_table.autofit = True  # Automatically adjust column widths
-                qr_cells = qr_table.rows[0].cells
+            # Create a table with 2 columns for QR codes
+            qr_table = doc.add_table(rows=1, cols=2)
+            qr_table.autofit = True  # Automatically adjust column widths
+            qr_cells = qr_table.rows[0].cells
 
-                # Generate and add WhatsApp QR code
-                whatsapp_qr = self.generate_qr(Whatsapp_link)
-                whatsapp_qr_path = "whatsapp_qr.png"
-                whatsapp_qr.save(whatsapp_qr_path)
+            # Generate and add WhatsApp QR code
+            whatsapp_qr = self.generate_qr(Whatsapp_link)
+            whatsapp_qr_path = "whatsapp_qr.png"
+            whatsapp_qr.save(whatsapp_qr_path)
 
-                whatsapp_paragraph = qr_cells[0].paragraphs[0]
-                run = whatsapp_paragraph.add_run()
-                run.add_picture(whatsapp_qr_path, width=Inches(1.5))  # Add QR code
-                whatsapp_paragraph.alignment = 1  # Center align
-                whatsapp_paragraph.add_run("\nVisit our WhatsApp").bold = True  # Add label below in the same paragraph
+            whatsapp_paragraph = qr_cells[0].paragraphs[0]
+            run = whatsapp_paragraph.add_run()
+            run.add_picture(whatsapp_qr_path, width=Inches(1.5))  # Add QR code
+            whatsapp_paragraph.alignment = 1  # Center align
+            whatsapp_paragraph.add_run("\nVisit our WhatsApp").bold = True  # Add label below in the same paragraph
 
-                # Generate and add Instagram QR code
-                instagram_qr = self.generate_qr(Insta_link)
-                instagram_qr_path = "instagram_qr.png"
-                instagram_qr.save(instagram_qr_path)
+            # Generate and add Instagram QR code
+            instagram_qr = self.generate_qr(Insta_link)
+            instagram_qr_path = "instagram_qr.png"
+            instagram_qr.save(instagram_qr_path)
 
-                instagram_paragraph = qr_cells[1].paragraphs[0]
-                run = instagram_paragraph.add_run()
-                run.add_picture(instagram_qr_path, width=Inches(1.5))  # Add QR code
-                instagram_paragraph.alignment = 1  # Center align
-                instagram_paragraph.add_run("\nVisit our Instagram").bold = True  # Add label below in the same paragraph
+            instagram_paragraph = qr_cells[1].paragraphs[0]
+            run = instagram_paragraph.add_run()
+            run.add_picture(instagram_qr_path, width=Inches(1.5))  # Add QR code
+            instagram_paragraph.alignment = 1  # Center align
+            instagram_paragraph.add_run("\nVisit our Instagram").bold = True  # Add label below in the same paragraph
 
-                # Save the document
-                file_path, _ = QFileDialog.getSaveFileName(self, "Save Document", "", "Word Files (*.docx)")
-                if file_path:
-                    if not file_path.endswith(".docx"):
-                        file_path += ".docx"  # Ensure the file has a .docx extension
-                    doc.save(file_path)
-                    QMessageBox.information(self, "Success", "Document saved successfully!")
-                    self.increment_Invoice_number()  # increments the invoice number
+            # Save the document
+            file_path, _ = QFileDialog.getSaveFileName(self, "Save Document", "", "Word Files (*.docx)")
+            if file_path:
+                if not file_path.endswith(".docx"):
+                    file_path += ".docx"  # Ensure the file has a .docx extension
+                doc.save(file_path)
+                QMessageBox.information(self, "Success", "Document saved successfully!")
+                self.increment_Invoice_number()  # Increment the invoice number
 
         except Exception as e:
-                QMessageBox.critical(self, "Error", f"An error occurred while saving the document: {str(e)}")
-    
+            QMessageBox.critical(self, "Error", f"An error occurred while saving the document: {str(e)}")
+        
+
+
     def closeEvent(self, event):
         """Save the last invoice number when the window is closed."""
         self.settings.setValue("last_invoice_number", self.last_invoice_number)
