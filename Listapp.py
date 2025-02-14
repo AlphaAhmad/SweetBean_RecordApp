@@ -1,6 +1,7 @@
 import sys
 import os
 import qrcode
+import platform
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import QPixmap, QImage, QFont, QTextOption
 from PyQt5.QtCore import Qt, QTimer, QDateTime, QSettings
@@ -913,8 +914,11 @@ class MainWindow(QMainWindow):
                     pdf_path = file_path.replace(".docx", ".pdf")
                     convert(file_path, pdf_path)
 
-                    # Print the PDF
-                    os.startfile(pdf_path, "print")  # Windows-specific command to print
+                    # Print the PDF (Windows-specific)
+                    if platform.system() == "Windows":
+                        os.startfile(pdf_path, "print")
+                    else:
+                        QMessageBox.warning(self, "Warning", "Automatic printing is only supported on Windows.")
                 except Exception as e:
                     QMessageBox.critical(self, "Error", f"An error occurred while printing: {str(e)}")
 
