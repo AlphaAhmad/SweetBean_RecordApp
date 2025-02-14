@@ -35,6 +35,9 @@ class MainWindow(QMainWindow):
         # Filter out duplicates (Avoid saving fixed policies)
         self.policies = [p for p in saved_policies if p not in Fixed_Policy_List]
 
+        # Load the logo path from settings
+        self.logo_path = self.settings.value("logo_path", "logo.jpeg")  # Default logo path
+
         # Set up the UI
         self.setup_ui()
 
@@ -55,12 +58,12 @@ class MainWindow(QMainWindow):
 
         # Sections of the UI
         self.main_layout.addLayout(self.create_metadata_layout())   # Logo, Date, Invoice, NTN
-        self.main_layout.addLayout(self.create_input_layout())      # Input fields + Add button
 
         # Add Customer Name and Address fields
         self.main_layout.addLayout(self.create_customer_details_layout())  # Customer Name and Address
 
         # Table for product list
+        self.main_layout.addLayout(self.create_input_layout())      # Input fields + Add button
         self.table = self.create_table()
         self.main_layout.addWidget(self.table)
 
@@ -99,7 +102,7 @@ class MainWindow(QMainWindow):
         # Apply dark theme stylesheet
         self.setStyleSheet("""
             QMainWindow {
-                background-color: #2d2d2d;
+                background-color:rgb(2, 2, 2);
             }
             QLabel {
                 font-size: 14px;
@@ -164,33 +167,59 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.reset_invoice_btn, 0, 0, 1, 2)  # Positioned at the top left
 
         # Logo
-        logo_label = QLabel()
-        logo = QPixmap("logo.jpeg")
-        scaled_logo = logo.scaled(120, 120, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-        logo_label.setPixmap(scaled_logo)
-        logo_label.setAlignment(Qt.AlignCenter)
-        layout.addWidget(logo_label, 1, 0, 1, 2)
+        self.logo_label = QLabel()
+        self.logo_label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(self.logo_label, 1, 0, 1, 2)  # Logo spans 1 row and 2 columns
+
+        # Load the logo from settings or use the default
+        self.logo_path = self.settings.value("logo_path", "logo.jpeg")  # Default logo path
+        self.update_logo()
+
+        # Change Logo Button
+        self.change_logo_btn = QPushButton("Change Logo")
+        self.change_logo_btn.clicked.connect(self.change_logo)
+        layout.addWidget(self.change_logo_btn, 2, 0, 1, 2)  # Button spans 1 row and 2 columns
 
         # Date and Time
         self.date_time_label = QLabel()
         self.date_time_label.setAlignment(Qt.AlignCenter)
         self.date_time_label.setFont(QFont("Arial", 12))
-        layout.addWidget(self.date_time_label, 2, 0, 1, 2)
+        layout.addWidget(self.date_time_label, 3, 0, 1, 2)  # Date and Time spans 1 row and 2 columns
 
         # Invoice Number (Separate Row)
         invoice_text_label = QLabel("Invoice Number:")
         invoice_text_label.setFont(QFont("Arial", 12, QFont.Bold))
         self.invoice_label = QLabel(f"{self.last_invoice_number}")
         self.invoice_label.setFont(QFont("Arial", 12, QFont.Bold))
-        layout.addWidget(invoice_text_label, 3, 0)
-        layout.addWidget(self.invoice_label, 3, 1)
+        layout.addWidget(invoice_text_label, 4, 0)
+        layout.addWidget(self.invoice_label, 4, 1)
 
         # NTN (Separate Row)
-        self.ntn_text_label = QLineEdit() # TODO
+        self.ntn_text_label = QLineEdit()
         self.ntn_text_label.setPlaceholderText("Enter NTN number")
         self.ntn_text_label.setFont(QFont("Arial", 12, QFont.Bold))
-        layout.addWidget(self.ntn_text_label, 4, 0)
+        layout.addWidget(self.ntn_text_label, 5, 0)
+
         return layout
+
+    def update_logo(self):
+        """Update the logo displayed in the UI."""
+        logo = QPixmap(self.logo_path)
+        if logo.isNull():
+            # If the logo file is not found, use a default placeholder
+            logo = QPixmap("logo.jpeg")  # Default logo
+        scaled_logo = logo.scaled(120, 120, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        self.logo_label.setPixmap(scaled_logo)
+
+    def change_logo(self):
+        """Open a file dialog to select a new logo."""
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "Select Logo", "", "Images (*.png *.jpg *.jpeg *.bmp)"
+        )
+        if file_path:
+            self.logo_path = file_path
+            self.settings.setValue("logo_path", self.logo_path)  # Save the new logo path
+            self.update_logo()  # Update the logo in the UI
 
     def create_customer_details_layout(self):
         """Create the layout for Customer Name and Address."""
@@ -770,7 +799,7 @@ class MainWindow(QMainWindow):
 
             # Add logo and brand name
             doc.add_heading("Sweet Bean", level=0).alignment = 1  # Center align brand name
-            logo_path = "logo.jpeg"  # Path to your logo file
+            logo_path = self.logo_path  # Use the updated logo path
             if logo_path:
                 doc.add_picture(logo_path, width=Inches(1.5))  # Add logo with a width of 1.5 inches
                 last_paragraph = doc.paragraphs[-1]
